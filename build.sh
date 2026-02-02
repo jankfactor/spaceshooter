@@ -8,7 +8,7 @@ export TARGETCOPY=./output/to/hostfs
 
 # Build options
 export USE_256_COLORS=yes
-export TARGET_A5000=yes
+export TARGET_A5000=no
 
 cd src
 if [ "$TOOLCHAIN" = "GCCSDK" ]; then
@@ -17,23 +17,23 @@ if [ "$TOOLCHAIN" = "GCCSDK" ]; then
     make -j4 USE_256_COLORS=$USE_256_COLORS TARGET_A5000=$TARGET_A5000
     
     # Uncomment RM lines in !Run,feb for GCCSDK builds (in case they were commented by ARCHIESDK)
-    sed -i.bak 's/^| RMLoad /RMLoad /' ./!Snowscape/!Run,feb
-    sed -i.bak 's/^| RMEnsure /RMEnsure /' ./!Snowscape/!Run,feb
-    rm -f ./!Snowscape/!Run,feb.bak
+    sed -i.bak 's/^| RMLoad /RMLoad /' ./!SpaceGame/!Run,feb
+    sed -i.bak 's/^| RMEnsure /RMEnsure /' ./!SpaceGame/!Run,feb
+    rm -f ./!SpaceGame/!Run,feb.bak
 elif [ "$TOOLCHAIN" = "ARCHIESDK" ]; then
     echo "Using ARCHIESDK toolchain"
     make -f Makefile clean
     make -f Makefile -j4 USE_256_COLORS=$USE_256_COLORS TARGET_A5000=$TARGET_A5000
     
     # Comment out RM lines in !Run,feb for ARCHIESDK builds
-    sed -i.bak 's/^RMLoad /| RMLoad /' ./!Snowscape/!Run,feb
-    sed -i.bak 's/^RMEnsure /| RMEnsure /' ./!Snowscape/!Run,feb
-    rm -f ./!Snowscape/!Run,feb.bak
+    sed -i.bak 's/^RMLoad /| RMLoad /' ./!SpaceGame/!Run,feb
+    sed -i.bak 's/^RMEnsure /| RMEnsure /' ./!SpaceGame/!Run,feb
+    rm -f ./!SpaceGame/!Run,feb.bak
 else
     echo "Unknown TOOLCHAIN: $TOOLCHAIN"
     exit 1
 fi
 
-# Copy the !Snowscape folder to hostfs, creating it if necessary
-mkdir -p ${TARGETCOPY}/!Snowscape
-cp -rf ./!Snowscape/* ${TARGETCOPY}/!Snowscape/
+# Copy the !SpaceGame folder to hostfs, creating it if necessary
+mkdir -p ${TARGETCOPY}/!SpaceGame
+cp -rf ./!SpaceGame/* ${TARGETCOPY}/!SpaceGame/

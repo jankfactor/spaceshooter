@@ -8,7 +8,7 @@ include $(ARCHIESDK)/config.mk
 
 # Project configuration
 APPNAME = !RunImage
-PROJNAME = Snowscape
+PROJNAME = SpaceGame
 
 # Directories
 SRCDIR := ./

@@ -1,5 +1,5 @@
 # The name of the program
-PROJNAME = Snowscape
+PROJNAME = SpaceGame
 
 # Build configuration
 export ELFOBJECTTYPE ?= HARDFPU
