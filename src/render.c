@@ -98,7 +98,7 @@ void ClipPolyonListToNearPlane(POLYGON *p)
 
     *p = inside;
 }
-
+/*
 void RenderTriangle(TRI *tri)
 {
     int i, j, k;
@@ -152,7 +152,8 @@ void RenderTriangle(TRI *tri)
         g_RenderQueue[k] = tri;
     }
 }
-
+*/
+/*
 void RenderModel(MAT43 *mv, V3D *eyePos, int yaw)
 {
     int i, j, k, x, z, mx, mz;
@@ -357,3 +358,4 @@ void RenderModel(MAT43 *mv, V3D *eyePos, int yaw)
     gTimerLog.clippedCount = clippedNearTrisIndex;
 #endif // TIMING_LOG
 }
+*/

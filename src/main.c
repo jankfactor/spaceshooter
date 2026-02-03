@@ -5,9 +5,14 @@
 #include <kernel.h>
 #include <swis.h>
 
-#include "mesh.h"
 #include "palette.h"
-#include "render.h"
+#include "math3d.h"
+#include "cvector.h"
+
+#define rand32(max) ((unsigned)rand() % (max))
+#define rand32balanced(max) (((unsigned)rand() % (max)) - ((max) >> 1))
+#define SCREEN_W 320
+#define SCREEN_H 256
 
 // ASM Routines
 extern void VDUSetup(void);
@@ -17,6 +22,7 @@ extern void SwitchScreenBank(void);
 extern void ClearScreen(int color, int fullclear);
 extern int KeyPress(int keyCode);
 extern void FillEdgeLists(int triList, int color);
+extern void ProjectVertex(int vertexPtr);
 
 // SWI access
 _kernel_oserror *err;
@@ -29,29 +35,43 @@ extern unsigned int EdgeList;
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
+V3D starfield[32];
+
 int main(int argc, char *argv[])
 {
     int i, swi_data[10], isRunning = 1;
     int heading = 498, pitch = -53, angle = 0;
     V3D eyePos, direction;
-    V3D verts[3];
+    V3D tmp;
     MAT43 mat;
     int mouseX, mouseY;
     unsigned char block[9];
+    unsigned char *ptr;
+
+    srand((unsigned int)time(NULL));
+    for (i = 0; i < 32; ++i)
+    {
+        starfield[i].x = rand32balanced(100) << 16;
+        starfield[i].y = rand32balanced(100) << 16;
+        starfield[i].z = rand32balanced(100) << 16;
+    
+        printf("Star %d: X=%d Y=%d Z=%d\n\r", i, starfield[i].x, starfield[i].y, starfield[i].z);
+    }
 
     SetupMathsGlobals(1);
+
+    
     for (i = 0; i < 1024; ++i)
     {
         g_SineTable[i] = float2fix(sinf((i * M_PI * 2.f) / 1024.f));
         g_oneOver[i] = (i == 0) ? float2fix(1.f) : float2fix(1.f / i);
     }
-
-    cvector_reserve(gEdgeList, 256);
-    EdgeList = (unsigned int)(gEdgeList); // For ASM access
+    
+    (void)getchar(); // Uncomment to pause here and read data output
+    // cvector_reserve(gEdgeList, 256);
+    // EdgeList = (unsigned int)(gEdgeList); // For ASM access
 
     SetupPaletteLookup(1);
-    SetupRender();
-    GenerateTerrain();
 
     gBaseDirectoryPath = getenv("Game$Dir");
     if (LoadFogLookup() != 0)
@@ -60,7 +80,6 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // (void)getchar(); // Uncomment to pause here and read data output
 
     // Disable the default escape handler
     rin.r[0] = 229;
@@ -91,9 +110,9 @@ int main(int argc, char *argv[])
         ClearScreen(0, 1);                          // Clear the new draw buffer
     }
 
-    eyePos.x = float2fix((MAPW << TILESHIFT) + (.5f)) >> 1;
-    eyePos.y = GetHeight(&eyePos);
-    eyePos.z = float2fix((MAPW << TILESHIFT) + (.5f)) >> 1;
+    eyePos.x = 0;
+    eyePos.y = 0;
+    eyePos.z = 0;
 
 #ifdef TIMING_LOG
     gTimerLog.biggestVertex = 0;
@@ -117,18 +136,6 @@ int main(int argc, char *argv[])
     err = _kernel_swi(OS_Mouse, &rin, &rout);
     mouseX = rout.r[0];
     mouseY = rout.r[1];
-    eyePos.y = GetHeight(&eyePos); // Start at the correct height
-
-    // Triangle mainly in the center of the 320x256 screen
-    verts[0].x = (164);
-    verts[0].y = (10);
-    verts[0].z = (0);
-    verts[1].x = (150);
-    verts[1].y = (200);
-    verts[1].z = (0);
-    verts[2].x = (170);
-    verts[2].y = (200);
-    verts[2].z = (0);
 
     if (err == NULL)
     {
@@ -147,14 +154,14 @@ int main(int argc, char *argv[])
                 // --angle;
                 eyePos.x += (fixcos(heading)) << 1;
                 eyePos.z -= (fixsin(heading)) << 1;
-                eyePos.y = GetHeight(&eyePos);
+                eyePos.y = 0;
             }
             if (rout.r[2] & 1) // Right mouse button - Walk backward
             {
                 // ++angle;
                 eyePos.x -= (fixcos(heading));
                 eyePos.z += (fixsin(heading));
-                eyePos.y = GetHeight(&eyePos);
+                eyePos.y = 0;
             }
 
             SwitchScreenBank();             // Swap draw buffer with display buffer
@@ -170,12 +177,32 @@ int main(int argc, char *argv[])
             LookAt(&eyePos, &direction, &mat); // TODO - SLOWWWWWW - 2 cross products in here
 
 #ifdef PAL_256
-            ClearScreen(0xC6C6C6C6, 1); // Clear the new draw buffer
+            ClearScreen(0x0, 1); // Clear the new draw buffer
 #else
-            ClearScreen(0xFFFFFFFF, 1); // Clear the new draw buffer
+            ClearScreen(0x0, 1); // Clear the new draw buffer
 #endif // PAL_256
 
-            RenderModel(&mat, &eyePos, heading); // Main render
+            for(i = 0; i < 32; ++i)
+            {
+                MultV3DMat(&starfield[i], &tmp, &mat);
+                
+                // if (tmp.z <= 0)
+                // continue;
+                
+                ProjectVertex((int)(&tmp));
+
+                // tmp.x >>= 16;
+                // tmp.y >>= 16;
+
+                if (tmp.x >= 0 && tmp.x < SCREEN_W && tmp.y >= 0 && tmp.y < SCREEN_H)
+                {
+                    ptr = (unsigned char *)(swi_data[3]);
+                    ptr += (tmp.y * SCREEN_W) + tmp.x;
+                    *ptr = i + 1; // White star
+                }
+            }
+
+            // RenderModel(&mat, &eyePos, heading); // Main render
 
 #ifdef TIMING_LOG
             {
@@ -212,7 +239,6 @@ int main(int argc, char *argv[])
 
     // Free up memory that was allocated
     cvector_free(gEdgeList);
-    DeAllocateTerrain();
     SetupMathsGlobals(0);
     SetupPaletteLookup(0);
     printf("Heading: %d, Pitch: %d\n", heading, pitch);

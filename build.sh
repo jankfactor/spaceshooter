@@ -4,7 +4,7 @@
 export TOOLCHAIN=ARCHIESDK
 # Set this to your hostfs path
 # e.g., export TARGETCOPY=/mnt/c/dev/ACORN/Arculator_V2.1_Windows/hostfs
-export TARGETCOPY=./output/to/hostfs
+export TARGETCOPY=/home/nick/git/arculator/install/hostfs
 
 # Build options
 export USE_256_COLORS=yes
