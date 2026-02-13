@@ -26,6 +26,7 @@ typedef signed int fix;
 #define float2fix(a) (fix)((a) * 65536.f)
 #define fix2float(a) (float)((a) / 65536.f)
 #define fixmult(a, b) (fix)(((a) >> 8) * ((b) >> 8))
+#define fixmult_lessThanOne(a, b) (fix)(((a) * (b)) >> 8)
 #define fixmultINTL(a, b) (fix)(((a) >> 16) * (b))
 #define fixdiv(a, b) (fix)(((a) << 8) / ((b) >> 8)) // NOTE - slow
 
@@ -135,8 +136,29 @@ void SetIdentity(MAT43 *mat);
 void SetScale(MAT43 *mat, fix sx, fix sy, fix sz);
 void SetScaleUniversal(MAT43 *mat, fix s);
 void MultMatMat(MAT43 *dest, MAT43 *a, MAT43 *b);
-void MultV3DMat(V3D *v, V3D *dest, MAT43 *mat);
-void MultV4DMat(V4D *v, V4D *dest, MAT44 *mat);
+
+static inline __attribute__((always_inline)) void MultV3DMat(V3D *v, V3D *dest, MAT43 *mat)
+{
+    dest->x = fixmult(v->x, mat->m11) + fixmult(v->y, mat->m12) + fixmult(v->z, mat->m13) + mat->tx;
+    dest->y = fixmult(v->x, mat->m21) + fixmult(v->y, mat->m22) + fixmult(v->z, mat->m23) + mat->ty;
+    dest->z = fixmult(v->x, mat->m31) + fixmult(v->y, mat->m32) + fixmult(v->z, mat->m33) + mat->tz;
+}
+
+static inline __attribute__((always_inline)) void MultV3DMat_NoTranslate(V3D *v, V3D *dest, MAT43 *mat)
+{
+    dest->x = fixmult_lessThanOne(v->x, mat->m11) + fixmult_lessThanOne(v->y, mat->m12) + fixmult_lessThanOne(v->z, mat->m13);
+    dest->y = fixmult_lessThanOne(v->x, mat->m21) + fixmult_lessThanOne(v->y, mat->m22) + fixmult_lessThanOne(v->z, mat->m23);
+    dest->z = fixmult_lessThanOne(v->x, mat->m31) + fixmult_lessThanOne(v->y, mat->m32) + fixmult_lessThanOne(v->z, mat->m33);
+}
+
+static inline __attribute__((always_inline)) void MultV4DMat(V4D *v, V4D *dest, MAT44 *mat)
+{
+    dest->x = fixmult(v->x, mat->m11) + fixmult(v->y, mat->m12) + fixmult(v->z, mat->m13) + fixmult(v->w, mat->m14);
+    dest->y = fixmult(v->x, mat->m21) + fixmult(v->y, mat->m22) + fixmult(v->z, mat->m23) + fixmult(v->w, mat->m24);
+    dest->z = fixmult(v->x, mat->m31) + fixmult(v->y, mat->m32) + fixmult(v->z, mat->m33) + fixmult(v->w, mat->m34);
+    dest->w = fixmult(v->x, mat->m41) + fixmult(v->y, mat->m42) + fixmult(v->z, mat->m43) + fixmult(v->w, mat->m44);
+}
+
 void RotateX(MAT43 *mat, int angle);
 void RotateY(MAT43 *mat, int angle);
 void RotateAxis(MAT43 *mat, V3D *axis, int angle);

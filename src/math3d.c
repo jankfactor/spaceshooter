@@ -6,9 +6,9 @@
 
 #include "cvector.h"
 
-fix *g_oneOver;   // Reciprocal table (for max screen height of 256 in Mode 13)
+fix *g_oneOver;              // Reciprocal table (for max screen height of 256 in Mode 13)
 extern unsigned int OneOver; // Address of the above table for ASM access
-fix *g_SineTable; // SIN table. Offset used for COS.
+fix *g_SineTable;            // SIN table. Offset used for COS.
 
 void SetupMathsGlobals(int isAllocating)
 {
@@ -197,21 +197,6 @@ void MultMatMat(MAT43 *dest, MAT43 *a, MAT43 *b)
     *dest = tmp;
 }
 
-void MultV3DMat(V3D *v, V3D *dest, MAT43 *mat)
-{
-    dest->x = fixmult(v->x, mat->m11) + fixmult(v->y, mat->m12) + fixmult(v->z, mat->m13) + mat->tx;
-    dest->y = fixmult(v->x, mat->m21) + fixmult(v->y, mat->m22) + fixmult(v->z, mat->m23) + mat->ty;
-    dest->z = fixmult(v->x, mat->m31) + fixmult(v->y, mat->m32) + fixmult(v->z, mat->m33) + mat->tz;
-}
-
-void MultV4DMat(V4D *v, V4D *dest, MAT44 *mat)
-{
-    dest->x = fixmult(v->x, mat->m11) + fixmult(v->y, mat->m12) + fixmult(v->z, mat->m13) + fixmult(v->w, mat->m14);
-    dest->y = fixmult(v->x, mat->m21) + fixmult(v->y, mat->m22) + fixmult(v->z, mat->m23) + fixmult(v->w, mat->m24);
-    dest->z = fixmult(v->x, mat->m31) + fixmult(v->y, mat->m32) + fixmult(v->z, mat->m33) + fixmult(v->w, mat->m34);
-    dest->w = fixmult(v->x, mat->m41) + fixmult(v->y, mat->m42) + fixmult(v->z, mat->m43) + fixmult(v->w, mat->m44);
-}
-
 V3D SubV3D(const V3D *a, const V3D *b)
 {
     V3D result;
@@ -241,8 +226,12 @@ void LookAt(const V3D *eyePos, const V3D *forward, MAT43 *mat)
     up.z = 0;
 
     // Calculate the right vector (perpendicular to forward and up)
-    right = CrossProductV3D(&up, forward);
-    up = CrossProductV3D(forward, &right);
+    right.x = fixmult(up.y, forward->z) - fixmult(up.z, forward->y);
+    right.y = fixmult(up.z, forward->x) - fixmult(up.x, forward->z);
+    right.z = fixmult(up.x, forward->y) - fixmult(up.y, forward->x);
+    up.x = fixmult(forward->y, right.z) - fixmult(forward->z, right.y);
+    up.y = fixmult(forward->z, right.x) - fixmult(forward->x, right.z);
+    up.z = fixmult(forward->x, right.y) - fixmult(forward->y, right.x);
 
     mat->tx = -DotProduct(&right, eyePos);
     mat->ty = -DotProduct(&up, eyePos);

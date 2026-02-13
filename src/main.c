@@ -9,10 +9,11 @@
 #include "math3d.h"
 #include "cvector.h"
 
-#define rand32(max) ((unsigned)rand() % (max))
-#define rand32balanced(max) (((unsigned)rand() % (max)) - ((max) >> 1))
+#define rand32(max) (rand() % (max))
+#define rand32balanced(max) ((rand() % (max)) - ((max) >> 1))
 #define SCREEN_W 320
 #define SCREEN_H 256
+#define NUM_STARS 128
 
 // ASM Routines
 extern void VDUSetup(void);
@@ -35,39 +36,38 @@ extern unsigned int EdgeList;
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
-V3D starfield[32];
+V3D starfield[NUM_STARS];
 
 int main(int argc, char *argv[])
 {
     int i, swi_data[10], isRunning = 1;
     int heading = 498, pitch = -53, angle = 0;
     V3D eyePos, direction;
-    V3D tmp;
+    V3D tmp, tmp2;
     MAT43 mat;
     int mouseX, mouseY;
     unsigned char block[9];
     unsigned char *ptr;
 
     srand((unsigned int)time(NULL));
-    for (i = 0; i < 32; ++i)
+    for (i = 0; i < NUM_STARS; ++i)
     {
-        starfield[i].x = rand32balanced(100) << 16;
-        starfield[i].y = rand32balanced(100) << 16;
-        starfield[i].z = rand32balanced(100) << 16;
-    
-        printf("Star %d: X=%d Y=%d Z=%d\n\r", i, starfield[i].x, starfield[i].y, starfield[i].z);
+        starfield[i].x = (rand32(0xFFFF));
+        starfield[i].y = (rand32(0xFFFF));
+        starfield[i].z = (rand32(0xFFFF));
+
+        // printf("Star %d: X=%d Y=%d Z=%d\n\r", i, starfield[i].x, starfield[i].y, starfield[i].z);
     }
 
     SetupMathsGlobals(1);
 
-    
     for (i = 0; i < 1024; ++i)
     {
         g_SineTable[i] = float2fix(sinf((i * M_PI * 2.f) / 1024.f));
         g_oneOver[i] = (i == 0) ? float2fix(1.f) : float2fix(1.f / i);
     }
-    
-    (void)getchar(); // Uncomment to pause here and read data output
+
+    // (void)getchar(); // Uncomment to pause here and read data output
     // cvector_reserve(gEdgeList, 256);
     // EdgeList = (unsigned int)(gEdgeList); // For ASM access
 
@@ -79,7 +79,6 @@ int main(int argc, char *argv[])
         printf("ERROR: Failed to load fog lookup table.\n");
         return 1;
     }
-
 
     // Disable the default escape handler
     rin.r[0] = 229;
@@ -144,7 +143,7 @@ int main(int argc, char *argv[])
             err = _kernel_swi(OS_Mouse, &rin, &rout); // Get the mouse position
             heading += clamp((rout.r[0] - mouseX) >> 7, -32, 32);
             pitch += clamp((rout.r[1] - mouseY) >> 7, -32, 32);
-            pitch = clamp(pitch, -100, 100);
+            pitch = clamp(pitch, -120, 120);
 
             if (KeyPress(112)) // Escape
                 isRunning = 0;
@@ -154,14 +153,14 @@ int main(int argc, char *argv[])
                 // --angle;
                 eyePos.x += (fixcos(heading)) << 1;
                 eyePos.z -= (fixsin(heading)) << 1;
-                eyePos.y = 0;
+                eyePos.y += (fixsin(pitch)) << 1;
             }
             if (rout.r[2] & 1) // Right mouse button - Walk backward
             {
                 // ++angle;
                 eyePos.x -= (fixcos(heading));
                 eyePos.z += (fixsin(heading));
-                eyePos.y = 0;
+                eyePos.y -= (fixsin(pitch)) << 1;
             }
 
             SwitchScreenBank();             // Swap draw buffer with display buffer
@@ -182,24 +181,37 @@ int main(int argc, char *argv[])
             ClearScreen(0x0, 1); // Clear the new draw buffer
 #endif // PAL_256
 
-            for(i = 0; i < 32; ++i)
+            int quantEyeX = eyePos.x >> 8;
+            int quantEyeY = eyePos.y >> 8;
+            int quantEyeZ = eyePos.z >> 8;
+
+            for (i = 0; i < NUM_STARS; ++i)
             {
-                MultV3DMat(&starfield[i], &tmp, &mat);
-                
-                // if (tmp.z <= 0)
-                // continue;
-                
+                // Wrap star position relative to eye into -64..+63 range (128 unit cube)
+                tmp2.x = starfield[i].x;
+                tmp2.x -= quantEyeX;
+                tmp2.x &= 0xFFFF;
+                tmp2.x -= 0x8000;
+                tmp2.y = starfield[i].y;
+                tmp2.y -= quantEyeY;
+                tmp2.y &= 0xFFFF;
+                tmp2.y -= 0x8000;
+                tmp2.z = starfield[i].z;
+                tmp2.z -= quantEyeZ;
+                tmp2.z &= 0xFFFF;
+                tmp2.z -= 0x8000;
+                MultV3DMat_NoTranslate(&tmp2, &tmp, &mat);
+                if (tmp.z <= 0)
+                    continue;
+
                 ProjectVertex((int)(&tmp));
 
-                // tmp.x >>= 16;
-                // tmp.y >>= 16;
+                if (tmp.x < 0 || tmp.x >= SCREEN_W || tmp.y < 0 || tmp.y >= SCREEN_H)
+                    continue;
 
-                if (tmp.x >= 0 && tmp.x < SCREEN_W && tmp.y >= 0 && tmp.y < SCREEN_H)
-                {
-                    ptr = (unsigned char *)(swi_data[3]);
-                    ptr += (tmp.y * SCREEN_W) + tmp.x;
-                    *ptr = i + 1; // White star
-                }
+                ptr = (unsigned char *)(swi_data[3]);
+                ptr += (tmp.y * SCREEN_W) + tmp.x;
+                *ptr = 255; // White star
             }
 
             // RenderModel(&mat, &eyePos, heading); // Main render

@@ -1,6 +1,7 @@
 # C Object files
 */o/*,ffd
 src/obj
+src/output
 /\!SpaceGame
 
 # Visual Studio Code
