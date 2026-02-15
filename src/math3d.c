@@ -215,6 +215,29 @@ V3D CrossProductV3D(const V3D *a, const V3D *b)
     return result;
 }
 
+void ViewMatrix(const V3D *p, const V3D *rpy, MAT43 *mat)
+{
+    fix cr = fixcos(rpy->z), sr = fixsin(rpy->z); // roll  Z
+    fix cp = fixcos(rpy->x), sp = fixsin(rpy->x); // pitch X
+    fix cy = fixcos(rpy->y), sy = fixsin(rpy->y); // yaw   Y
+
+    mat->m11 = fixmult(cr, cy) + fixmult(fixmult(sr, sp), sy);
+    mat->m12 = fixmult(sr, cp);
+    mat->m13 = fixmult(-cr, sy) + fixmult(fixmult(sr, sp), cy);
+
+    mat->m21 = fixmult(-sr, cy) + fixmult(fixmult(cr, sp), sy);
+    mat->m22 = fixmult(cr, cp);
+    mat->m23 = fixmult(sr, sy) + fixmult(fixmult(cr, sp), cy);
+
+    mat->m31 = fixmult(cp, sy);
+    mat->m32 = -sp;
+    mat->m33 = fixmult(cp, cy);
+
+    mat->tx = p->x;
+    mat->ty = p->y;
+    mat->tz = p->z;
+}
+
 void LookAt(const V3D *eyePos, const V3D *forward, MAT43 *mat)
 {
     // Calculate the forward vector (direction from eye to target)

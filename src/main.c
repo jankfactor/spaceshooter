@@ -13,7 +13,7 @@
 #define rand32balanced(max) ((rand() % (max)) - ((max) >> 1))
 #define SCREEN_W 320
 #define SCREEN_H 256
-#define NUM_STARS 128
+#define NUM_STARS 256
 
 // ASM Routines
 extern void VDUSetup(void);
@@ -37,13 +37,15 @@ extern unsigned int EdgeList;
 #define TOSTRING(x) STRINGIFY(x)
 
 V3D starfield[NUM_STARS];
+unsigned char colors[16] = {0, 1, 2, 3, 44, 45, 46, 47, 208, 209, 210, 211, 252, 253, 254, 255};
 
 int main(int argc, char *argv[])
 {
     int i, swi_data[10], isRunning = 1;
-    int heading = 498, pitch = -53, angle = 0;
-    V3D eyePos, direction;
+    int rollRate, pitchRate;
+    V3D eyePos;
     V3D tmp, tmp2;
+    V3D camRight, camUp, camForward;
     MAT43 mat;
     int mouseX, mouseY;
     unsigned char block[9];
@@ -88,7 +90,7 @@ int main(int argc, char *argv[])
     VDUSetup();
     ReserveScreenBanks();
     SwitchScreenBank();
-    SetPalette();
+    // SetPalette();
     // Save256(); // Uncomment to save the VIDC generated palette to a file
 
     // Obtain details about the current screen mode
@@ -112,6 +114,10 @@ int main(int argc, char *argv[])
     eyePos.x = 0;
     eyePos.y = 0;
     eyePos.z = 0;
+
+    camRight.x = int2fix(1); camRight.y = 0; camRight.z = 0;
+    camUp.x = 0; camUp.y = int2fix(1); camUp.z = 0;
+    camForward.x = 0; camForward.y = 0; camForward.z = int2fix(1);
 
 #ifdef TIMING_LOG
     gTimerLog.biggestVertex = 0;
@@ -141,27 +147,68 @@ int main(int argc, char *argv[])
         while (isRunning)
         {
             err = _kernel_swi(OS_Mouse, &rin, &rout); // Get the mouse position
-            heading += clamp((rout.r[0] - mouseX) >> 7, -32, 32);
-            pitch += clamp((rout.r[1] - mouseY) >> 7, -32, 32);
-            pitch = clamp(pitch, -120, 120);
+            rollRate = clamp((mouseX - rout.r[0]) >> 7, -32, 32);
+            pitchRate = clamp((mouseY - rout.r[1]) >> 7, -32, 32);
+
+            // Apply roll (rotate right and up around forward axis)
+            {
+                fix cr = fixcos(rollRate), sr = fixsin(rollRate);
+                V3D newRight, newUp;
+                newRight.x = fixmult(cr, camRight.x) + fixmult(sr, camUp.x);
+                newRight.y = fixmult(cr, camRight.y) + fixmult(sr, camUp.y);
+                newRight.z = fixmult(cr, camRight.z) + fixmult(sr, camUp.z);
+                newUp.x = fixmult(-sr, camRight.x) + fixmult(cr, camUp.x);
+                newUp.y = fixmult(-sr, camRight.y) + fixmult(cr, camUp.y);
+                newUp.z = fixmult(-sr, camRight.z) + fixmult(cr, camUp.z);
+                camRight = newRight;
+                camUp = newUp;
+            }
+
+            // Apply pitch (rotate up and forward around right axis)
+            {
+                fix cp = fixcos(pitchRate), sp = fixsin(pitchRate);
+                V3D newUp, newFwd;
+                newUp.x = fixmult(cp, camUp.x) - fixmult(sp, camForward.x);
+                newUp.y = fixmult(cp, camUp.y) - fixmult(sp, camForward.y);
+                newUp.z = fixmult(cp, camUp.z) - fixmult(sp, camForward.z);
+                newFwd.x = fixmult(sp, camUp.x) + fixmult(cp, camForward.x);
+                newFwd.y = fixmult(sp, camUp.y) + fixmult(cp, camForward.y);
+                newFwd.z = fixmult(sp, camUp.z) + fixmult(cp, camForward.z);
+                camUp = newUp;
+                camForward = newFwd;
+            }
+
+            // Re-orthogonalize (Gram-Schmidt, forward is primary axis)
+            {
+                fix d;
+                Normalize(&camForward);
+                d = DotProduct(&camRight, &camForward);
+                camRight.x -= fixmult(d, camForward.x);
+                camRight.y -= fixmult(d, camForward.y);
+                camRight.z -= fixmult(d, camForward.z);
+                Normalize(&camRight);
+                camUp = CrossProductV3D(&camForward, &camRight);
+            }
 
             if (KeyPress(112)) // Escape
                 isRunning = 0;
 
-            if (rout.r[2] & 4) // Left mouse button - Walk forward
-            {
-                // --angle;
-                eyePos.x += (fixcos(heading)) << 1;
-                eyePos.z -= (fixsin(heading)) << 1;
-                eyePos.y += (fixsin(pitch)) << 1;
-            }
-            if (rout.r[2] & 1) // Right mouse button - Walk backward
-            {
-                // ++angle;
-                eyePos.x -= (fixcos(heading));
-                eyePos.z += (fixsin(heading));
-                eyePos.y -= (fixsin(pitch)) << 1;
-            }
+            // if (rout.r[2] & 4) // Left mouse button - Thrust forward
+            // {
+            //     eyePos.x += camForward.x << 1;
+            //     eyePos.y += camForward.y << 1;
+            //     eyePos.z += camForward.z << 1;
+            // }
+            // if (rout.r[2] & 1) // Right mouse button - Thrust backward
+            // {
+            //     eyePos.x -= camForward.x;
+            //     eyePos.y -= camForward.y;
+            //     eyePos.z -= camForward.z;
+            // }
+
+            eyePos.x += camForward.x;
+            eyePos.y += camForward.y;
+            eyePos.z += camForward.z;
 
             SwitchScreenBank();             // Swap draw buffer with display buffer
             rin.r[0] = (int)(&swi_data[0]); // Get the new screen start address
@@ -169,11 +216,13 @@ int main(int argc, char *argv[])
             err = _kernel_swi(OS_ReadVduVariables, &rin, &rout);
             UpdateMemAddress(swi_data[3], swi_data[4]); // Pass these to the ASM side
 
-            direction.x = fixcos(heading);
-            direction.y = fixsin(pitch);
-            direction.z = -fixsin(heading);
-
-            LookAt(&eyePos, &direction, &mat); // TODO - SLOWWWWWW - 2 cross products in here
+            // Build view matrix from camera orientation vectors
+            mat.m11 = camRight.x;   mat.m12 = camRight.y;   mat.m13 = camRight.z;
+            mat.m21 = camUp.x;      mat.m22 = camUp.y;      mat.m23 = camUp.z;
+            mat.m31 = camForward.x; mat.m32 = camForward.y; mat.m33 = camForward.z;
+            mat.tx = -DotProduct(&camRight, &eyePos);
+            mat.ty = -DotProduct(&camUp, &eyePos);
+            mat.tz = -DotProduct(&camForward, &eyePos);
 
 #ifdef PAL_256
             ClearScreen(0x0, 1); // Clear the new draw buffer
@@ -211,7 +260,7 @@ int main(int argc, char *argv[])
 
                 ptr = (unsigned char *)(swi_data[3]);
                 ptr += (tmp.y * SCREEN_W) + tmp.x;
-                *ptr = 255; // White star
+                *ptr = colors[15 - min(tmp.z >> 12, 15)];
             }
 
             // RenderModel(&mat, &eyePos, heading); // Main render
@@ -253,7 +302,7 @@ int main(int argc, char *argv[])
     cvector_free(gEdgeList);
     SetupMathsGlobals(0);
     SetupPaletteLookup(0);
-    printf("Heading: %d, Pitch: %d\n", heading, pitch);
+    printf("Forward: %d, %d, %d\n", camForward.x, camForward.y, camForward.z);
     printf("Eyepos: %d, %d, %d\n", eyePos.x, eyePos.y, eyePos.z);
 
     // (void)getchar(); // Uncomment to pause here and read data output

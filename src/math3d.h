@@ -169,6 +169,7 @@ fix DotProduct(const V3D *v1, const V3D *v2);
 V3D SubV3D(const V3D *a, const V3D *b);
 V3D CrossProductV3D(const V3D *a, const V3D *b);
 void LookAt(const V3D *eyePos, const V3D *forward, MAT43 *mat);
+void ViewMatrix(const V3D *p, const V3D *rpy, MAT43 *mat);
 void PerspectiveProjection(MAT44 *mat, float fov, float aspect, float znear, float zfar);
 
 #endif // MATH3D_H
