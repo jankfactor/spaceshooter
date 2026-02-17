@@ -37,7 +37,8 @@ extern unsigned int EdgeList;
 #define TOSTRING(x) STRINGIFY(x)
 
 V3D starfield[NUM_STARS];
-unsigned char colors[16] = {0, 1, 2, 3, 44, 45, 46, 47, 208, 209, 210, 211, 252, 253, 254, 255};
+const unsigned char colors[16] = {8, 9, 10, 11, 160, 161, 162, 163, 200, 201, 202, 203, 232, 234, 235, 236};
+// {0, 1, 2, 3, 44, 45, 46, 47, 208, 209, 210, 211, 252, 253, 254, 255};
 
 int main(int argc, char *argv[])
 {
@@ -262,6 +263,10 @@ int main(int argc, char *argv[])
                 ptr += (tmp.y * SCREEN_W) + tmp.x;
                 *ptr = colors[15 - min(tmp.z >> 12, 15)];
             }
+
+            // rin.r[0] = 30;
+            // err = _kernel_swi(OS_WriteC, &rin, &rout);
+            // printf("Eyepos: %d, %d, %d\n", eyePos.x >> 16, eyePos.y >> 16, eyePos.z >> 16);
 
             // RenderModel(&mat, &eyePos, heading); // Main render
 
