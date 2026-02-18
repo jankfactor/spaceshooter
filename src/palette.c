@@ -7,6 +7,7 @@
 #include <swis.h>
 
 #include "cvector.h"
+#include "utils.h"
 
 static _kernel_oserror *err;
 static _kernel_swi_regs rin, rout;

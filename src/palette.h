@@ -1,8 +1,6 @@
 #ifndef PALETTE_H
 #define PALETTE_H
 
-extern char *gBaseDirectoryPath;
-
 extern unsigned int *g_fogTable;
 
 void SetupPaletteLookup(int allocating);

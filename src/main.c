@@ -7,6 +7,7 @@
 
 #include "palette.h"
 #include "math3d.h"
+#include "mesh.h"
 #include "cvector.h"
 
 #define rand32(max) (rand() % (max))
@@ -47,6 +48,7 @@ int main(int argc, char *argv[])
     V3D eyePos;
     V3D tmp, tmp2;
     V3D camRight, camUp, camForward;
+    V3D *vPtr;
     MAT43 mat;
     int mouseX, mouseY;
     unsigned char block[9];
@@ -74,14 +76,20 @@ int main(int argc, char *argv[])
     // cvector_reserve(gEdgeList, 256);
     // EdgeList = (unsigned int)(gEdgeList); // For ASM access
 
-    SetupPaletteLookup(1);
+    // SetupPaletteLookup(1);
 
     gBaseDirectoryPath = getenv("Game$Dir");
-    if (LoadFogLookup() != 0)
+    if (LoadOBJ("assets.ship_obj") != 0)
     {
-        printf("ERROR: Failed to load fog lookup table.\n");
+        printf("Unable to load file. Please use the !Run script.\n");
         return 1;
     }
+
+    // if (LoadFogLookup() != 0)
+    // {
+    //     printf("ERROR: Failed to load fog lookup table.\n");
+    //     return 1;
+    // }
 
     // Disable the default escape handler
     rin.r[0] = 229;
@@ -114,7 +122,7 @@ int main(int argc, char *argv[])
 
     eyePos.x = 0;
     eyePos.y = 0;
-    eyePos.z = 0;
+    eyePos.z = -100;
 
     camRight.x = int2fix(1); camRight.y = 0; camRight.z = 0;
     camUp.x = 0; camUp.y = int2fix(1); camUp.z = 0;
@@ -264,9 +272,52 @@ int main(int argc, char *argv[])
                 *ptr = colors[15 - min(tmp.z >> 12, 15)];
             }
 
+            // Rotate vertices and move into the negative Z space
+            // and perform a rudimentary perspective transform.
+            for (i = 0; i < cvector_size(g_Mesh.verts); ++i)
+            {
+                vPtr = &g_Mesh.verts_transformed[i];
+                MultV3DMat(&g_Mesh.verts[i], vPtr, &mat);
+
+                if (vPtr->z <= 0)
+                    continue;
+
+                ProjectVertex((int)(vPtr));
+
+                if (vPtr->x < 0 || vPtr->x >= SCREEN_W || vPtr->y < 0 || vPtr->y >= SCREEN_H)
+                    continue;
+
+                ptr = (unsigned char *)(swi_data[3]);
+                ptr += (vPtr->y * SCREEN_W) + vPtr->x;
+                *ptr = 215;
+            }
+
+            // // Look at the transformed normal for each face and decide whether
+            // // to include it in the next render queue.
+            // for (i = 0; i < cvector_size(g_Mesh.faces); ++i)
+            // {
+            //     g_Mesh.faces[i].next = NULL;
+            //     _verts[0] = g_Mesh.verts_transformed[g_Mesh.faces[i].a];
+            //     _verts[1] = g_Mesh.verts_transformed[g_Mesh.faces[i].b];
+            //     _verts[2] = g_Mesh.verts_transformed[g_Mesh.faces[i].c];
+            //     if (orient2d(_verts[0], _verts[1], _verts[2]) > 0)
+            //     {
+            //         MultV3DMat(&g_Mesh.faces[i].normal, &tmpVec, &mat);
+            //         // Add face to the destination list if it is facing us
+            //         g_Mesh.faces[i].d = palette[colorIndex + MAX(tmpVec.z / 4500, 0)];
+            //         // Important to invert the depth here as the camera looks into -Z
+            //         // but our RenderQueue is indexed by positive numbers
+            //         g_Mesh.faces[i].depth = -((_verts[0].z + _verts[1].z + _verts[2].z) >> 17);
+            //         // Push the previous triangle (if any) onto the stack for this depth.
+            //         g_Mesh.faces[i].next = RenderQueue[g_Mesh.faces[i].depth];
+            //         RenderQueue[g_Mesh.faces[i].depth] = &g_Mesh.faces[i];
+            //     }
+            // }
+
             // rin.r[0] = 30;
             // err = _kernel_swi(OS_WriteC, &rin, &rout);
             // printf("Eyepos: %d, %d, %d\n", eyePos.x >> 16, eyePos.y >> 16, eyePos.z >> 16);
+            // printf("Verts: %d\n", cvector_size(g_Mesh.verts));
 
             // RenderModel(&mat, &eyePos, heading); // Main render
 
@@ -306,7 +357,8 @@ int main(int argc, char *argv[])
     // Free up memory that was allocated
     cvector_free(gEdgeList);
     SetupMathsGlobals(0);
-    SetupPaletteLookup(0);
+    FreeMesh();
+    // SetupPaletteLookup(0);
     printf("Forward: %d, %d, %d\n", camForward.x, camForward.y, camForward.z);
     printf("Eyepos: %d, %d, %d\n", eyePos.x, eyePos.y, eyePos.z);
 

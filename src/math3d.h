@@ -102,8 +102,8 @@ typedef struct V4D
 
 typedef struct TRI
 {
-    unsigned short a, b, c, flags;
-    V2D centerpoint;
+    unsigned short a, b, c, d;
+    V3D normal;
     fix depth;
     void *next;
 } TRI;
@@ -173,4 +173,3 @@ void ViewMatrix(const V3D *p, const V3D *rpy, MAT43 *mat);
 void PerspectiveProjection(MAT44 *mat, float fov, float aspect, float znear, float zfar);
 
 #endif // MATH3D_H
-
