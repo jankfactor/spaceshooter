@@ -522,26 +522,21 @@ Triv_DrawEdges:
         .endif
         ADD r11,r11,r2          // Add Y offset to screen offset start location
 
-        @ LDR r0,FogTable
-        @ LDR r7,[sp]             // Load the color
-        @ ADD r0,r0,r7,LSL#2      // Load the fog value
-        @ MOV r0, #215
-        @ TST v1_Y,#1             // Does the triangle start on an odd line?
-        @ .ifdef PAL_256
-        @ LDRNE r7,[r0]             // Load the fog value
-        @ LDRNE r8,[r0,#256]       // Load the fog value
-        @ LDREQ r8,[r0]             // Load the fog value
-        @ LDREQ r7,[r0,#256]       // Load the fog value
-        @ .else
-        @ LDRNE r7,[r0]             // Load the fog value
-        @ LDRNE r8,[r0,#64]       // Load the fog value offset by 16 bytes
-        @ LDREQ r8,[r0]             // Load the fog value
-        @ LDREQ r7,[r0,#64]       // Load the fog value offset by 16 bytes
-        @ .endif
-        MOV r7, #215
-        EOR r7, r7, LSL#8
-        EOR r7, r7, LSL#16
-        MOV r8, r7
+        LDR r0,FogTable
+        LDR r7,[sp]             // Load the color
+        ADD r0,r0,r7,LSL#2      // Load the fog value
+        TST v1_Y,#1             // Does the triangle start on an odd line?
+        .ifdef PAL_256
+        LDRNE r7,[r0]             // Load the fog value
+        LDRNE r8,[r0,#256]       // Load the fog value
+        LDREQ r8,[r0]             // Load the fog value
+        LDREQ r7,[r0,#256]       // Load the fog value
+        .else
+        LDRNE r7,[r0]             // Load the fog value
+        LDRNE r8,[r0,#64]       // Load the fog value offset by 16 bytes
+        LDREQ r8,[r0]             // Load the fog value
+        LDREQ r7,[r0,#64]       // Load the fog value offset by 16 bytes
+        .endif
 
 // ==========================================
 // ========= RASTERIZE THE EDGE LIST ========
@@ -892,5 +887,4 @@ NoDivide:
 
         STMFD r0!,{r1-r3}  // Store X, Y, Z back to the vertex
         MOV pc,lr
-
 

@@ -30,6 +30,7 @@ int LoadOBJ(char *filename)
     V3D vertex;
     V3D _verts[4];
     TRI face;
+    V3D *imported_normals = NULL;
 
     g_Mesh.verts = NULL;
     g_Mesh.faces = NULL;
@@ -53,9 +54,28 @@ int LoadOBJ(char *filename)
         {
             // Parse fixed-point vertex coordinates directly
             sscanf(line, "v %d %d %d", &vertex.x, &vertex.y, &vertex.z);
+            vertex.x <<= 4;
+            vertex.y <<= 4;
+            vertex.z <<= 4;
+
             cvector_push_back(g_Mesh.verts, vertex);
         }
-        // // Face information
+
+        if (!imported_normals)
+        {
+            cvector_reserve(imported_normals, cvector_size(g_Mesh.verts));
+        }
+
+        // Normal information
+        if (strncmp(line, "vn ", 3) == 0)
+        {
+            // Parse fixed-point vertex coordinates directly
+            sscanf(line, "vn %d %d %d", &vertex.x, &vertex.y, &vertex.z);
+
+            cvector_push_back(imported_normals, vertex);
+        }
+
+        // Face information
         if (strncmp(line, "f ", 2) == 0)
         {
             sscanf(
@@ -69,13 +89,21 @@ int LoadOBJ(char *filename)
             face.c = vertex_indices[2] - 1;
             face.next = NULL;
 
+            // In theory, all 3 normals should be the same indice so let's just pick 1
+            face.normal = imported_normals[face.b];
+
             printf("TRIS: %d, %d, %d\n", face.a, face.b, face.c);
 
             cvector_push_back(g_Mesh.faces, face);
         }
     }
 
-    getchar();
+    if (imported_normals)
+    {
+        cvector_free(imported_normals);
+    }
+
+    // getchar();
 
     // for (i = 0; i < cvector_size(g_Mesh.faces); ++i)
     // {
