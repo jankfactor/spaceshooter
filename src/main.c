@@ -37,13 +37,15 @@ extern unsigned int EdgeList;
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
+#define MAXDEPTH 256
+
 V3D starfield[NUM_STARS];
 const unsigned char colors[16] = {8, 9, 10, 11, 160, 161, 162, 163, 200, 201, 202, 203, 232, 234, 235, 236};
 // {0, 1, 2, 3, 44, 45, 46, 47, 208, 209, 210, 211, 252, 253, 254, 255};
 
 int main(int argc, char *argv[])
 {
-    int i, swi_data[10], isRunning = 1;
+    int i, j, swi_data[10], isRunning = 1;
     int rollRate, pitchRate;
     V3D eyePos;
     V3D tmp, tmp2;
@@ -53,6 +55,11 @@ int main(int argc, char *argv[])
     int mouseX, mouseY;
     unsigned char block[9];
     unsigned char *ptr;
+    V3D _verts[4], tmpVec;
+    V2D v[3];
+    TRI *RenderQueue[MAXDEPTH], *queuePtr = NULL;
+
+    memset(&RenderQueue[0], 0, sizeof(TRI *) * MAXDEPTH);
 
     srand((unsigned int)time(NULL));
     for (i = 0; i < NUM_STARS; ++i)
@@ -73,10 +80,10 @@ int main(int argc, char *argv[])
     }
 
     // (void)getchar(); // Uncomment to pause here and read data output
-    // cvector_reserve(gEdgeList, 256);
-    // EdgeList = (unsigned int)(gEdgeList); // For ASM access
+    cvector_reserve(gEdgeList, 256);
+    EdgeList = (unsigned int)(gEdgeList); // For ASM access
 
-    // SetupPaletteLookup(1);
+    SetupPaletteLookup(1);
 
     gBaseDirectoryPath = getenv("Game$Dir");
     if (LoadOBJ("assets.ship_obj") != 0)
@@ -85,11 +92,11 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // if (LoadFogLookup() != 0)
-    // {
-    //     printf("ERROR: Failed to load fog lookup table.\n");
-    //     return 1;
-    // }
+    if (LoadFogLookup() != 0)
+    {
+        printf("ERROR: Failed to load fog lookup table.\n");
+        return 1;
+    }
 
     // Disable the default escape handler
     rin.r[0] = 229;
@@ -122,11 +129,17 @@ int main(int argc, char *argv[])
 
     eyePos.x = 0;
     eyePos.y = 0;
-    eyePos.z = -100;
+    eyePos.z = -100 << 16;
 
-    camRight.x = int2fix(1); camRight.y = 0; camRight.z = 0;
-    camUp.x = 0; camUp.y = int2fix(1); camUp.z = 0;
-    camForward.x = 0; camForward.y = 0; camForward.z = int2fix(1);
+    camRight.x = int2fix(1);
+    camRight.y = 0;
+    camRight.z = 0;
+    camUp.x = 0;
+    camUp.y = int2fix(1);
+    camUp.z = 0;
+    camForward.x = 0;
+    camForward.y = 0;
+    camForward.z = int2fix(1);
 
 #ifdef TIMING_LOG
     gTimerLog.biggestVertex = 0;
@@ -208,16 +221,17 @@ int main(int argc, char *argv[])
             //     eyePos.y += camForward.y << 1;
             //     eyePos.z += camForward.z << 1;
             // }
-            // if (rout.r[2] & 1) // Right mouse button - Thrust backward
-            // {
-            //     eyePos.x -= camForward.x;
-            //     eyePos.y -= camForward.y;
-            //     eyePos.z -= camForward.z;
-            // }
-
-            eyePos.x += camForward.x;
-            eyePos.y += camForward.y;
-            eyePos.z += camForward.z;
+            if (rout.r[2] & 1) // Right mouse button - Thrust backward
+            {
+                eyePos.x += camForward.x;
+                eyePos.y += camForward.y;
+                eyePos.z += camForward.z;
+            }
+            /*else {
+                eyePos.x += camForward.x;
+                eyePos.y += camForward.y;
+                eyePos.z += camForward.z;
+            }*/
 
             SwitchScreenBank();             // Swap draw buffer with display buffer
             rin.r[0] = (int)(&swi_data[0]); // Get the new screen start address
@@ -226,15 +240,21 @@ int main(int argc, char *argv[])
             UpdateMemAddress(swi_data[3], swi_data[4]); // Pass these to the ASM side
 
             // Build view matrix from camera orientation vectors
-            mat.m11 = camRight.x;   mat.m12 = camRight.y;   mat.m13 = camRight.z;
-            mat.m21 = camUp.x;      mat.m22 = camUp.y;      mat.m23 = camUp.z;
-            mat.m31 = camForward.x; mat.m32 = camForward.y; mat.m33 = camForward.z;
+            mat.m11 = camRight.x;
+            mat.m12 = camRight.y;
+            mat.m13 = camRight.z;
+            mat.m21 = camUp.x;
+            mat.m22 = camUp.y;
+            mat.m23 = camUp.z;
+            mat.m31 = camForward.x;
+            mat.m32 = camForward.y;
+            mat.m33 = camForward.z;
             mat.tx = -DotProduct(&camRight, &eyePos);
             mat.ty = -DotProduct(&camUp, &eyePos);
             mat.tz = -DotProduct(&camForward, &eyePos);
 
 #ifdef PAL_256
-            ClearScreen(0x0, 1); // Clear the new draw buffer
+            ClearScreen(0xFFFFFFFF, 1); // Clear the new draw buffer
 #else
             ClearScreen(0x0, 1); // Clear the new draw buffer
 #endif // PAL_256
@@ -243,34 +263,34 @@ int main(int argc, char *argv[])
             int quantEyeY = eyePos.y >> 8;
             int quantEyeZ = eyePos.z >> 8;
 
-            for (i = 0; i < NUM_STARS; ++i)
-            {
-                // Wrap star position relative to eye into -64..+63 range (128 unit cube)
-                tmp2.x = starfield[i].x;
-                tmp2.x -= quantEyeX;
-                tmp2.x &= 0xFFFF;
-                tmp2.x -= 0x8000;
-                tmp2.y = starfield[i].y;
-                tmp2.y -= quantEyeY;
-                tmp2.y &= 0xFFFF;
-                tmp2.y -= 0x8000;
-                tmp2.z = starfield[i].z;
-                tmp2.z -= quantEyeZ;
-                tmp2.z &= 0xFFFF;
-                tmp2.z -= 0x8000;
-                MultV3DMat_NoTranslate(&tmp2, &tmp, &mat);
-                if (tmp.z <= 0)
-                    continue;
+            // for (i = 0; i < NUM_STARS; ++i)
+            // {
+            //     // Wrap star position relative to eye into -64..+63 range (128 unit cube)
+            //     tmp2.x = starfield[i].x;
+            //     tmp2.x -= quantEyeX;
+            //     tmp2.x &= 0xFFFF;
+            //     tmp2.x -= 0x8000;
+            //     tmp2.y = starfield[i].y;
+            //     tmp2.y -= quantEyeY;
+            //     tmp2.y &= 0xFFFF;
+            //     tmp2.y -= 0x8000;
+            //     tmp2.z = starfield[i].z;
+            //     tmp2.z -= quantEyeZ;
+            //     tmp2.z &= 0xFFFF;
+            //     tmp2.z -= 0x8000;
+            //     MultV3DMat_NoTranslate(&tmp2, &tmp, &mat);
+            //     if (tmp.z <= 0)
+            //         continue;
 
-                ProjectVertex((int)(&tmp));
+            //     ProjectVertex((int)(&tmp));
 
-                if (tmp.x < 0 || tmp.x >= SCREEN_W || tmp.y < 0 || tmp.y >= SCREEN_H)
-                    continue;
+            //     if (tmp.x < 0 || tmp.x >= SCREEN_W || tmp.y < 0 || tmp.y >= SCREEN_H)
+            //         continue;
 
-                ptr = (unsigned char *)(swi_data[3]);
-                ptr += (tmp.y * SCREEN_W) + tmp.x;
-                *ptr = colors[15 - min(tmp.z >> 12, 15)];
-            }
+            //     ptr = (unsigned char *)(swi_data[3]);
+            //     ptr += (tmp.y * SCREEN_W) + tmp.x;
+            //     *ptr = colors[15 - min(tmp.z >> 12, 15)];
+            // }
 
             // Rotate vertices and move into the negative Z space
             // and perform a rudimentary perspective transform.
@@ -278,40 +298,89 @@ int main(int argc, char *argv[])
             {
                 vPtr = &g_Mesh.verts_transformed[i];
                 MultV3DMat(&g_Mesh.verts[i], vPtr, &mat);
-
-                if (vPtr->z <= 0)
-                    continue;
-
-                ProjectVertex((int)(vPtr));
-
-                if (vPtr->x < 0 || vPtr->x >= SCREEN_W || vPtr->y < 0 || vPtr->y >= SCREEN_H)
-                    continue;
-
-                ptr = (unsigned char *)(swi_data[3]);
-                ptr += (vPtr->y * SCREEN_W) + vPtr->x;
-                *ptr = 215;
+                ProjectVertex((int)(vPtr)); // Skips if Z <= 0
             }
 
-            // // Look at the transformed normal for each face and decide whether
-            // // to include it in the next render queue.
-            // for (i = 0; i < cvector_size(g_Mesh.faces); ++i)
+            // Look at the transformed normal for each face and decide whether
+            // to include it in the next render queue.
+            for (i = 0; i < cvector_size(g_Mesh.faces); ++i)
+            {
+                g_Mesh.faces[i].next = NULL;
+                _verts[0] = g_Mesh.verts_transformed[g_Mesh.faces[i].a];
+                _verts[1] = g_Mesh.verts_transformed[g_Mesh.faces[i].b];
+                _verts[2] = g_Mesh.verts_transformed[g_Mesh.faces[i].c];
+
+                // Skip faces with any vertex behind the camera (not projected)
+                // if (_verts[0].z <= 0 || _verts[1].z <= 0 || _verts[2].z <= 0)
+                //     continue;
+
+                // if (orient2d(_verts[0], _verts[1], _verts[2]) > 0)
+                {
+                    // MultV3DMat(&g_Mesh.faces[i].normal, &tmpVec, &mat);
+
+                    // Add face to the destination list if it is facing us
+                    g_Mesh.faces[i].d = 0; // colors[max(tmpVec.z / 4500, 0)];
+                    // Important to invert the depth here as the camera looks into -Z
+                    // but our RenderQueue is indexed by positive numbers
+                    g_Mesh.faces[i].depth = 128; //((_verts[0].z + _verts[1].z + _verts[2].z) >> 17);
+
+                    // Push the previous triangle (if any) onto the stack for this depth.
+                    g_Mesh.faces[i].next = RenderQueue[g_Mesh.faces[i].depth];
+                    RenderQueue[g_Mesh.faces[i].depth] = &g_Mesh.faces[i];
+                }
+            }
+
+            // Painter's algorithm. Proceed from furthest to nearest.
+            for (i = MAXDEPTH - 1; i != 0; i--)
+            {
+                while (RenderQueue[i])
+                { // Render faces with current depth
+                    queuePtr = RenderQueue[i];
+                    _verts[0] = g_Mesh.verts_transformed[queuePtr->a];
+                    _verts[1] = g_Mesh.verts_transformed[queuePtr->b];
+                    _verts[2] = g_Mesh.verts_transformed[queuePtr->c];
+
+                    // for (j = 0; j < 3; ++j)
+                    // {
+                    //     if (_verts[j].x < 0 || _verts[j].x >= SCREEN_W || _verts[j].y < 0 || _verts[j].y >= SCREEN_H)
+                    //         continue;
+
+                    //     ptr = (unsigned char *)(swi_data[3]);
+                    //     ptr += (_verts[j].y * SCREEN_W) + _verts[j].x;
+                    //     *ptr = colors[15 - min(_verts[j].z >> 12, 15)];
+                    // }
+
+                    // _verts[0].x = 10;
+                    // _verts[0].y = 10;
+                    // _verts[1].x = 150;
+                    // _verts[1].y = 20;
+                    // _verts[2].x = 50;
+                    // _verts[2].y = 150;
+
+                    // color =  queuePtr->d; // The palette index for this face
+                    // color4 = (color << 24) | (color << 16) | (color << 8) | color;
+
+                    // ++triCount;
+                    // SortVertices((unsigned int)(&v[0].x));
+                    FillEdgeLists((unsigned int)(&_verts[0]), 10);//color4);
+                    RenderQueue[i] = (TRI *)queuePtr->next; // Next face
+                }
+            }
+
+            // Render the mesh as points
+            // for (i = 0; i < cvector_size(g_Mesh.verts); ++i)
             // {
-            //     g_Mesh.faces[i].next = NULL;
-            //     _verts[0] = g_Mesh.verts_transformed[g_Mesh.faces[i].a];
-            //     _verts[1] = g_Mesh.verts_transformed[g_Mesh.faces[i].b];
-            //     _verts[2] = g_Mesh.verts_transformed[g_Mesh.faces[i].c];
-            //     if (orient2d(_verts[0], _verts[1], _verts[2]) > 0)
-            //     {
-            //         MultV3DMat(&g_Mesh.faces[i].normal, &tmpVec, &mat);
-            //         // Add face to the destination list if it is facing us
-            //         g_Mesh.faces[i].d = palette[colorIndex + MAX(tmpVec.z / 4500, 0)];
-            //         // Important to invert the depth here as the camera looks into -Z
-            //         // but our RenderQueue is indexed by positive numbers
-            //         g_Mesh.faces[i].depth = -((_verts[0].z + _verts[1].z + _verts[2].z) >> 17);
-            //         // Push the previous triangle (if any) onto the stack for this depth.
-            //         g_Mesh.faces[i].next = RenderQueue[g_Mesh.faces[i].depth];
-            //         RenderQueue[g_Mesh.faces[i].depth] = &g_Mesh.faces[i];
-            //     }
+            //     vPtr = &g_Mesh.verts_transformed[i];
+
+            //     if (vPtr->z <= 0)
+            //         continue;
+
+            //     if (vPtr->x < 0 || vPtr->x >= SCREEN_W || vPtr->y < 0 || vPtr->y >= SCREEN_H)
+            //         continue;
+
+            //     ptr = (unsigned char *)(swi_data[3]);
+            //     ptr += (vPtr->y * SCREEN_W) + vPtr->x;
+            //     *ptr = 215;
             // }
 
             // rin.r[0] = 30;
@@ -358,7 +427,7 @@ int main(int argc, char *argv[])
     cvector_free(gEdgeList);
     SetupMathsGlobals(0);
     FreeMesh();
-    // SetupPaletteLookup(0);
+    SetupPaletteLookup(0);
     printf("Forward: %d, %d, %d\n", camForward.x, camForward.y, camForward.z);
     printf("Eyepos: %d, %d, %d\n", eyePos.x, eyePos.y, eyePos.z);
 

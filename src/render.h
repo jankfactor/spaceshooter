@@ -8,7 +8,7 @@
 #include "math3d.h"
 
 void SetupRender(void);
-// void RenderModel(MAT43 *mv, V3D *eyePos, int yaw);
+void RenderModel(MAT43 *mv, V3D *eyePos, int yaw);
 void MultV3DProj(V3D *v, int *clipflags);
 
 // How many tiles around the look center. i.e., double this for the max tiles ahead.
