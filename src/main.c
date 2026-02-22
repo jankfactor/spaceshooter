@@ -40,12 +40,12 @@ extern unsigned int EdgeList;
 #define MAXDEPTH 256
 
 V3D starfield[NUM_STARS];
-const unsigned char colors[16] = {8, 9, 10, 11, 160, 161, 162, 163, 200, 201, 202, 203, 232, 234, 235, 236};
+const unsigned char colors[16] = {128, 136, 169, 170, 171, 161, 172, 205, 221, 222, 219, 220, 247, 246, 242, 242};
 // {0, 1, 2, 3, 44, 45, 46, 47, 208, 209, 210, 211, 252, 253, 254, 255};
 
 int main(int argc, char *argv[])
 {
-    int i, j, swi_data[10], isRunning = 1;
+    int i, j = 0, swi_data[10], isRunning = 1;
     int rollRate, pitchRate;
     V3D eyePos;
     V3D tmp, tmp2;
@@ -314,21 +314,24 @@ int main(int argc, char *argv[])
                 if (_verts[0].z <= 0 || _verts[1].z <= 0 || _verts[2].z <= 0)
                     continue;
 
-                // if (orient2d(_verts[0], _verts[1], _verts[2]) < 0)
+                if (orient2dint(_verts[0], _verts[1], _verts[2]) >= 0)
                 {
-                    // MultV3DMat_NoTranslate(&g_Mesh.faces[i].normal, &tmpVec, &mat);
+                    const V3D *faceNormal = &g_Mesh.faces[i].normal;
+                    // MultV3DMat_NoTranslate(faceNormal, &tmpVec, &mat);
 
                     // Add face to the destination list if it is facing us
-                    g_Mesh.faces[i].d = (i * 7) & 63;///128 + min(max((tmpVec.z / 1024), 16), 63);
+                    g_Mesh.faces[i].d = (8 << 9) + clamp((faceNormal->x >> 10), 0, 63);
                     // Important to invert the depth here as the camera looks into -Z
                     // but our RenderQueue is indexed by positive numbers
-                    g_Mesh.faces[i].depth = min((_verts[0].z + _verts[1].z + _verts[2].z) >> 10, MAXDEPTH - 1);
+                    g_Mesh.faces[i].depth = min((_verts[0].z + _verts[1].z + _verts[2].z) >> 8, MAXDEPTH - 1);
 
                     // Push the previous triangle (if any) onto the stack for this depth.
                     g_Mesh.faces[i].next = RenderQueue[g_Mesh.faces[i].depth];
                     RenderQueue[g_Mesh.faces[i].depth] = &g_Mesh.faces[i];
                 }
             }
+
+            ++j;
 
             // Painter's algorithm. Proceed from furthest to nearest.
             for (i = MAXDEPTH - 1; i >= 0; i--)
@@ -348,7 +351,7 @@ int main(int argc, char *argv[])
 
             // rin.r[0] = 30;
             // err = _kernel_swi(OS_WriteC, &rin, &rout);
-            // printf("Eyepos: %d, %d, %d\n", eyePos.x >> 16, eyePos.y >> 16, eyePos.z >> 16);
+            // printf("j: %d\n", j);
             // printf("Verts: %d\n", cvector_size(g_Mesh.verts));
 
             // RenderModel(&mat, &eyePos, heading); // Main render

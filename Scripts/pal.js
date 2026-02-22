@@ -1,6 +1,16 @@
 // This script reads a palette file and generates a dithered image and a binary file with the dithered palette
 // USAGE:
-// node pal.js
+// node pal.js [options]
+//
+// OPTIONS:
+// lookup    - Write lookup table (optional)
+// png       - Generate new PNG instead of loading existing (optional)
+//
+// EXAMPLES:
+// node pal.js                     - Load existing PNG and use palette.hex
+// node pal.js lookup              - Load existing PNG and write lookup table
+// node pal.js png                 - Generate new PNG instead of loading existing
+// node pal.js png lookup          - Generate new PNG and write lookup table
 
 const fs = require('fs');
 const path = require('path');
@@ -57,7 +67,7 @@ fs.readFile(filePath, 'utf8', (err, data) => {
 
     const numSteps = 64;
     const closestColors = [];
-    const targetColor = hexToRgb("#66aaee");
+    const targetColor = hexToRgb("#ffffff");
 
     // Create the color steps towards the target for each color in the palette
     palette.forEach((color) => {
