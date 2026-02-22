@@ -314,15 +314,15 @@ int main(int argc, char *argv[])
                 if (_verts[0].z <= 0 || _verts[1].z <= 0 || _verts[2].z <= 0)
                     continue;
 
-                if (orient2d(_verts[0], _verts[1], _verts[2]) < 0)
+                // if (orient2d(_verts[0], _verts[1], _verts[2]) < 0)
                 {
-                    MultV3DMat_NoTranslate(&g_Mesh.faces[i].normal, &tmpVec, &mat);
+                    // MultV3DMat_NoTranslate(&g_Mesh.faces[i].normal, &tmpVec, &mat);
 
                     // Add face to the destination list if it is facing us
-                    g_Mesh.faces[i].d = 40; // min(max((tmpVec.z >> 10), 0), 63);
+                    g_Mesh.faces[i].d = (i * 7) & 63;///128 + min(max((tmpVec.z / 1024), 16), 63);
                     // Important to invert the depth here as the camera looks into -Z
                     // but our RenderQueue is indexed by positive numbers
-                    g_Mesh.faces[i].depth = min((_verts[0].z + _verts[1].z + _verts[2].z) >> 8, MAXDEPTH - 1);
+                    g_Mesh.faces[i].depth = min((_verts[0].z + _verts[1].z + _verts[2].z) >> 10, MAXDEPTH - 1);
 
                     // Push the previous triangle (if any) onto the stack for this depth.
                     g_Mesh.faces[i].next = RenderQueue[g_Mesh.faces[i].depth];
@@ -340,50 +340,11 @@ int main(int argc, char *argv[])
                     _verts[1] = g_Mesh.verts_transformed[queuePtr->b];
                     _verts[2] = g_Mesh.verts_transformed[queuePtr->c];
 
-                    // for (j = 0; j < 3; ++j)
-                    // {
-                    //     if (_verts[j].x < 0 || _verts[j].x >= SCREEN_W || _verts[j].y < 0 || _verts[j].y >= SCREEN_H)
-                    //         continue;
-
-                    //     ptr = (unsigned char *)(swi_data[3]);
-                    //     ptr += (_verts[j].y * SCREEN_W) + _verts[j].x;
-                    //     *ptr = colors[15 - min(_verts[j].z >> 12, 15)];
-                    // }
-
-                    // _verts[0].x = rand()%SCREEN_W;
-                    // _verts[0].y = rand()%SCREEN_H;
-                    // _verts[1].x = rand()%SCREEN_W;//150;
-                    // _verts[1].y = rand()%SCREEN_H;//20;
-                    // _verts[2].x = rand()%SCREEN_W;// 50;
-                    // _verts[2].y = rand()%SCREEN_H;//150;
-
-                    // color =  queuePtr->d; // The palette index for this face
-                    //  color4 = (color << 24) | (color << 16) | (color << 8) | color;
-
-                    // ++triCount;
-                    // SortVertices((unsigned int)(&v[0].x));
-
                     FillEdgeLists((unsigned int)(&_verts[0]), queuePtr->d); // color4);
 
                     RenderQueue[i] = (TRI *)queuePtr->next; // Next face
                 }
             }
-
-            // Render the mesh as points
-            // for (i = 0; i < cvector_size(g_Mesh.verts); ++i)
-            // {
-            //     vPtr = &g_Mesh.verts_transformed[i];
-
-            //     if (vPtr->z <= 0)
-            //         continue;
-
-            //     if (vPtr->x < 0 || vPtr->x >= SCREEN_W || vPtr->y < 0 || vPtr->y >= SCREEN_H)
-            //         continue;
-
-            //     ptr = (unsigned char *)(swi_data[3]);
-            //     ptr += (vPtr->y * SCREEN_W) + vPtr->x;
-            //     *ptr = 215;
-            // }
 
             // rin.r[0] = 30;
             // err = _kernel_swi(OS_WriteC, &rin, &rout);
