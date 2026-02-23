@@ -40,7 +40,7 @@ extern unsigned int EdgeList;
 #define MAXDEPTH 256
 
 V3D starfield[NUM_STARS];
-const unsigned char colors[16] = {128, 136, 169, 170, 171, 161, 172, 205, 221, 222, 219, 220, 247, 246, 242, 242};
+const unsigned char colors[16] = {128, 131, 136, 169, 170, 171, 161, 172, 205, 221, 222, 219, 220, 247, 246, 242};
 // {0, 1, 2, 3, 44, 45, 46, 47, 208, 209, 210, 211, 252, 253, 254, 255};
 
 int main(int argc, char *argv[])
@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
 
             // Apply roll (rotate right and up around forward axis)
             {
-                fix cr = fixcos(rollRate), sr = fixsin(rollRate);
+                const fix cr = fixcos(rollRate), sr = fixsin(rollRate);
                 V3D newRight, newUp;
                 newRight.x = fixmult(cr, camRight.x) + fixmult(sr, camUp.x);
                 newRight.y = fixmult(cr, camRight.y) + fixmult(sr, camUp.y);
@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
 
             // Apply pitch (rotate up and forward around right axis)
             {
-                fix cp = fixcos(pitchRate), sp = fixsin(pitchRate);
+                const fix cp = fixcos(pitchRate), sp = fixsin(pitchRate);
                 V3D newUp, newFwd;
                 newUp.x = fixmult(cp, camUp.x) - fixmult(sp, camForward.x);
                 newUp.y = fixmult(cp, camUp.y) - fixmult(sp, camForward.y);
