@@ -172,35 +172,36 @@ int main(int argc, char *argv[])
             rollRate = clamp((mouseX - rout.r[0]) >> 7, -32, 32);
             pitchRate = clamp((mouseY - rout.r[1]) >> 7, -32, 32);
 
-            // Apply roll (rotate right and up around forward axis)
+            // Apply roll: small-angle Minsky circle approximation.
+            // cos(a) ~= 1 dropped; update camUp first, reuse it for camRight
+            // (Minsky trick: using the intermediate value improves rotational stability).
+            // Saves: 2 trig lookups (fixcos), 12 fixmults, 2 temp V3D structs vs full rotation.
             {
-                const fix cr = fixcos(rollRate), sr = fixsin(rollRate);
-                V3D newRight, newUp;
-                newRight.x = fixmult(cr, camRight.x) + fixmult(sr, camUp.x);
-                newRight.y = fixmult(cr, camRight.y) + fixmult(sr, camUp.y);
-                newRight.z = fixmult(cr, camRight.z) + fixmult(sr, camUp.z);
-                newUp.x = fixmult(-sr, camRight.x) + fixmult(cr, camUp.x);
-                newUp.y = fixmult(-sr, camRight.y) + fixmult(cr, camUp.y);
-                newUp.z = fixmult(-sr, camRight.z) + fixmult(cr, camUp.z);
-                camRight = newRight;
-                camUp = newUp;
+                const fix alpha = fixsin(rollRate);
+                camUp.x -= fixmult(alpha, camRight.x);
+                camUp.y -= fixmult(alpha, camRight.y);
+                camUp.z -= fixmult(alpha, camRight.z);
+                camRight.x += fixmult(alpha, camUp.x);
+                camRight.y += fixmult(alpha, camUp.y);
+                camRight.z += fixmult(alpha, camUp.z);
             }
 
-            // Apply pitch (rotate up and forward around right axis)
+            // Apply pitch: same small-angle Minsky approximation.
+            // Update camUp first, reuse updated camUp for camForward.
             {
-                const fix cp = fixcos(pitchRate), sp = fixsin(pitchRate);
-                V3D newUp, newFwd;
-                newUp.x = fixmult(cp, camUp.x) - fixmult(sp, camForward.x);
-                newUp.y = fixmult(cp, camUp.y) - fixmult(sp, camForward.y);
-                newUp.z = fixmult(cp, camUp.z) - fixmult(sp, camForward.z);
-                newFwd.x = fixmult(sp, camUp.x) + fixmult(cp, camForward.x);
-                newFwd.y = fixmult(sp, camUp.y) + fixmult(cp, camForward.y);
-                newFwd.z = fixmult(sp, camUp.z) + fixmult(cp, camForward.z);
-                camUp = newUp;
-                camForward = newFwd;
+                const fix beta = fixsin(pitchRate);
+                camUp.x -= fixmult(beta, camForward.x);
+                camUp.y -= fixmult(beta, camForward.y);
+                camUp.z -= fixmult(beta, camForward.z);
+                camForward.x += fixmult(beta, camUp.x);
+                camForward.y += fixmult(beta, camUp.y);
+                camForward.z += fixmult(beta, camUp.z);
             }
 
-            // Re-orthogonalize (Gram-Schmidt, forward is primary axis)
+            // Re-orthogonalize periodically (Gram-Schmidt, forward is primary axis).
+            // Minsky rotation is self-stabilizing so every-frame correction is unnecessary;
+            // amortize the cost of two floating-point Normalize calls across 64 frames.
+            if ((j & 63) == 0)
             {
                 fix d;
                 Normalize(&camForward);
