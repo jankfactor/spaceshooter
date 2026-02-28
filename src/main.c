@@ -45,13 +45,10 @@ int main(int argc, char *argv[])
     V3D eyePos;
     V3D tmp, tmp2;
     V3D camRight, camUp, camForward;
-    V3D *vPtr;
     MAT43 mat;
     int mouseX, mouseY;
     unsigned char block[9];
     unsigned char *ptr;
-    V3D _verts[4], tmpVec;
-    V2D v[3];
 
     srand((unsigned int)time(NULL));
     for (i = 0; i < NUM_STARS; ++i)
@@ -274,69 +271,11 @@ int main(int argc, char *argv[])
                 *ptr = colors[15 - min(tmp.z >> 12, 15)];
             }
 
-            // Rotate vertices and move into the negative Z space
-            // and perform a rudimentary perspective transform.
-            for (i = 0; i < cvector_size(g_Mesh.verts); ++i)
-            {
-                vPtr = &g_Mesh.verts_transformed[i];
-                MultV3DMat(&g_Mesh.verts[i], vPtr, &mat);
-                ProjectVertex((int)(vPtr)); // Skips if Z <= 0
-            }
-
-            // Look at the transformed normal for each face and decide whether
-            // to include it in the next render queue.
-            for (i = 0; i < cvector_size(g_Mesh.faces); ++i)
-            {
-                g_Mesh.faces[i].next = NULL;
-                _verts[0] = g_Mesh.verts_transformed[g_Mesh.faces[i].a];
-                _verts[1] = g_Mesh.verts_transformed[g_Mesh.faces[i].b];
-                _verts[2] = g_Mesh.verts_transformed[g_Mesh.faces[i].c];
-
-                // Skip faces with any vertex behind the camera (not projected)
-                if (_verts[0].z <= 0 || _verts[1].z <= 0 || _verts[2].z <= 0)
-                    continue;
-
-                if (orient2dint(_verts[0], _verts[1], _verts[2]) >= 0)
-                {
-                    const V3D *faceNormal = &g_Mesh.faces[i].normal;
-                    // MultV3DMat_NoTranslate(faceNormal, &tmpVec, &mat);
-
-                    // Add face to the destination list if it is facing us
-                    g_Mesh.faces[i].d = (8 << 9) + clamp((faceNormal->x >> 10), 0, 63);
-                    // Important to invert the depth here as the camera looks into -Z
-                    // but our g_RenderQueue is indexed by positive numbers
-                    g_Mesh.faces[i].depth = min((_verts[0].z + _verts[1].z + _verts[2].z) >> 8, MAXDEPTH - 1);
-
-                    // Push the previous triangle (if any) onto the stack for this depth.
-                    g_Mesh.faces[i].next = g_RenderQueue[g_Mesh.faces[i].depth];
-                    g_RenderQueue[g_Mesh.faces[i].depth] = &g_Mesh.faces[i];
-                }
-            }
+            RenderModel(&mat, &g_Mesh);
 
             ++j;
 
-            // Painter's algorithm. Proceed from furthest to nearest.
-            for (i = MAXDEPTH - 1; i >= 0; i--)
-            {
-                while (g_RenderQueue[i])
-                { // Render faces with current depth
-                    queuePtr = g_RenderQueue[i];
-                    _verts[0] = g_Mesh.verts_transformed[queuePtr->a];
-                    _verts[1] = g_Mesh.verts_transformed[queuePtr->b];
-                    _verts[2] = g_Mesh.verts_transformed[queuePtr->c];
-
-                    FillEdgeLists((unsigned int)(&_verts[0]), queuePtr->d); // color4);
-
-                    g_RenderQueue[i] = (TRI *)queuePtr->next; // Next face
-                }
-            }
-
-            // rin.r[0] = 30;
-            // err = _kernel_swi(OS_WriteC, &rin, &rout);
-            // printf("j: %d\n", j);
-            // printf("Verts: %d\n", cvector_size(g_Mesh.verts));
-
-            // RenderModel(&mat, &eyePos, heading); // Main render
+            g_Mesh.eulers.x ++;
 
 #ifdef TIMING_LOG
             {

@@ -6,9 +6,10 @@
 #define MAXDEPTH 256
 
 #include "math3d.h"
+#include "mesh.h"
 
 void SetupRender(int allocating);
-void RenderModel(MAT43 *mv, V3D *eyePos, int yaw);
+void RenderModel(MAT43 *viewMat, Mesh *mesh);
 void MultV3DProj(V3D *v, int *clipflags);
 
 extern TRI *g_RenderQueue[MAXDEPTH];

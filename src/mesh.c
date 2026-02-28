@@ -385,5 +385,8 @@ int LoadOBJ(char *filename)
 
     fclose(file);
 
+    g_Mesh.position = (V3D){0, 0, 0};
+    g_Mesh.eulers = (V3D){0, 0, 0};
+
     return 0;
 }

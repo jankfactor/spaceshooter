@@ -110,7 +110,75 @@ void SetupRender(int allocating)
 //     *p = inside;
 // }
 
-void RenderModel(MAT43 *mv, V3D *eyePos, int yaw)
+void RenderModel(MAT43 *viewMat, Mesh *mesh)
 {
-    // FillEdgeLists((int)&_verts[0], k);
+    MAT43 modelMat;
+    V3D _verts[4], tmpVec, worldPos;
+    V3D *vPtr;
+    int i;
+
+    // Build local model matrix from mesh eulers and position
+    EulerToMat(&modelMat, mesh->eulers.x, mesh->eulers.y, mesh->eulers.z);
+    modelMat.tx = mesh->position.x;
+    modelMat.ty = mesh->position.y;
+    modelMat.tz = mesh->position.z;
+
+    // Transform vertices: object space -> world space -> view space
+    for (i = 0; i < cvector_size(mesh->verts); ++i)
+    {
+        vPtr = &mesh->verts_transformed[i];
+        MultV3DMat(&mesh->verts[i], &worldPos, &modelMat); // Local rotation + world position
+        MultV3DMat(&worldPos, vPtr, viewMat);               // World -> view space
+        ProjectVertex((int)(vPtr));                         // Perspective projection (skips if Z <= 0)
+    }
+
+    // Backface cull and insert visible faces into the depth-sorted render queue
+    for (i = 0; i < cvector_size(mesh->faces); ++i)
+    {
+        mesh->faces[i].next = NULL;
+        _verts[0] = mesh->verts_transformed[mesh->faces[i].a];
+        _verts[1] = mesh->verts_transformed[mesh->faces[i].b];
+        _verts[2] = mesh->verts_transformed[mesh->faces[i].c];
+
+        // Skip faces with any vertex behind the camera (not projected)
+        if (_verts[0].z <= 0 || _verts[1].z <= 0 || _verts[2].z <= 0)
+            continue;
+
+        if (orient2dint(_verts[0], _verts[1], _verts[2]) >= 0)
+        {
+            // Rotate face normal by model rotation for correct lighting.
+            // Use fixmult (not fixmult_lessThanOne) to avoid 32-bit overflow
+            // when rotation matrix entries or normal components reach 1.0.
+            const V3D *n = &mesh->faces[i].normal;
+            tmpVec.x = fixmult(n->x, modelMat.m11) + fixmult(n->y, modelMat.m12) + fixmult(n->z, modelMat.m13);
+            tmpVec.y = fixmult(n->x, modelMat.m21) + fixmult(n->y, modelMat.m22) + fixmult(n->z, modelMat.m23);
+            tmpVec.z = fixmult(n->x, modelMat.m31) + fixmult(n->y, modelMat.m32) + fixmult(n->z, modelMat.m33);
+
+            // Add face to the destination list if it is facing us
+            mesh->faces[i].d = (256 << 6) + clamp((tmpVec.x >> 10), 0, 63);
+            // Important to invert the depth here as the camera looks into -Z
+            // but our g_RenderQueue is indexed by positive numbers
+            mesh->faces[i].depth = min((_verts[0].z + _verts[1].z + _verts[2].z) >> 8, MAXDEPTH - 1);
+
+            // Push the previous triangle (if any) onto the stack for this depth.
+            mesh->faces[i].next = g_RenderQueue[mesh->faces[i].depth];
+            g_RenderQueue[mesh->faces[i].depth] = &mesh->faces[i];
+        }
+    }
+
+    // Painter's algorithm. Proceed from furthest to nearest.
+    for (i = MAXDEPTH - 1; i >= 0; i--)
+    {
+        while (g_RenderQueue[i])
+        { // Render faces with current depth
+            queuePtr = g_RenderQueue[i];
+            _verts[0] = mesh->verts_transformed[queuePtr->a];
+            _verts[1] = mesh->verts_transformed[queuePtr->b];
+            _verts[2] = mesh->verts_transformed[queuePtr->c];
+
+            FillEdgeLists((unsigned int)(&_verts[0]), queuePtr->d);
+
+            g_RenderQueue[i] = (TRI *)queuePtr->next; // Next face
+        }
+    }
 }
