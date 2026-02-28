@@ -17,6 +17,7 @@ function processObjFile(inputPath, outputPath) {
   const vertices = [];
   const normals = [];
   const faces = [];
+  let currentMaterial = 0;
 
   // First pass: collect all data
   for (const line of lines) {
@@ -38,6 +39,14 @@ function processObjFile(inputPath, outputPath) {
       const z = convertToFixedPoint(parts[3]);
       normals.push(`${x} ${y} ${z}`);
     }
+    // Track current material index (usemtl <number>)
+    else if (trimmed.startsWith('usemtl ')) {
+      const parts = trimmed.split(/\s+/);
+      const parsedMaterial = parseInt(parts[1], 10);
+      if (!Number.isNaN(parsedMaterial)) {
+        currentMaterial = parsedMaterial;
+      }
+    }
     // Handle faces (f)
     else if (trimmed.startsWith('f ')) {
       // Parse faces in format: f v1//n1 v2//n2 v3//n3
@@ -47,8 +56,8 @@ function processObjFile(inputPath, outputPath) {
           const [v, , n] = p.split('/');
           return { v: parseInt(v), n: parseInt(n) };
         });
-        // Store as: v1 n1 v2 n2 v3 n3
-        faces.push(`${indices[0].v} ${indices[0].n} ${indices[1].v} ${indices[1].n} ${indices[2].v} ${indices[2].n}`);
+        // Store as: mat v1 n1 v2 n2 v3 n3
+        faces.push(`${currentMaterial} ${indices[0].v} ${indices[0].n} ${indices[1].v} ${indices[1].n} ${indices[2].v} ${indices[2].n}`);
       }
     }
   }
