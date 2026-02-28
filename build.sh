@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Toolchain can either be GCCSDK or ARCHIESDK
-export TOOLCHAIN=ARCHIESDK
+export TOOLCHAIN=GCCSDK
 # Set this to your hostfs path
 # e.g., export TARGETCOPY=/mnt/c/dev/ACORN/Arculator_V2.1_Windows/hostfs
 export TARGETCOPY=/home/nick/git/arculator/install/hostfs

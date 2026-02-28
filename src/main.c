@@ -10,6 +10,7 @@
 #include "mesh.h"
 #include "cvector.h"
 #include "render.h"
+#include "utils.h"
 
 #define rand32(max) (rand() % (max))
 #define rand32balanced(max) ((rand() % (max)) - ((max) >> 1))
@@ -110,19 +111,19 @@ int main(int argc, char *argv[])
         ClearScreen(0, 1);                          // Clear the new draw buffer
     }
 
-    eyePos.x = 0;
+    eyePos.x = 100 << 16;
     eyePos.y = 0;
-    eyePos.z = -100 << 16;
+    eyePos.z = 0;
 
-    camRight.x = int2fix(1);
+    camRight.x = 0;
     camRight.y = 0;
-    camRight.z = 0;
+    camRight.z = int2fix(1);
     camUp.x = 0;
     camUp.y = int2fix(1);
     camUp.z = 0;
-    camForward.x = 0;
+    camForward.x = -int2fix(1);
     camForward.y = 0;
-    camForward.z = int2fix(1);
+    camForward.z = 0;
 
 #ifdef TIMING_LOG
     gTimerLog.biggestVertex = 0;
@@ -196,8 +197,32 @@ int main(int argc, char *argv[])
                 camUp = CrossProductV3D(&camForward, &camRight);
             }
 
-            if (KeyPress(112)) // Escape
+            if (KeyPress(KEY_ESCAPE)) // Escape
                 isRunning = 0;
+            else if (KeyPress(KEY_A)) // A - Strafe left
+            {
+                eyePos.x -= camRight.x >> 1;
+                eyePos.y -= camRight.y >> 1;
+                eyePos.z -= camRight.z >> 1;
+            }
+            else if (KeyPress(KEY_D)) // D - Strafe right
+            {
+                eyePos.x += camRight.x >> 1;
+                eyePos.y += camRight.y >> 1;
+                eyePos.z += camRight.z >> 1;
+            }
+            else if (KeyPress(KEY_W)) // W - Strafe up
+            {
+                eyePos.x += camUp.x >> 1;
+                eyePos.y += camUp.y >> 1;
+                eyePos.z += camUp.z >> 1;
+            }
+            else if (KeyPress(KEY_S)) // S - Strafe down
+            {
+                eyePos.x -= camUp.x >> 1;
+                eyePos.y -= camUp.y >> 1;
+                eyePos.z -= camUp.z >> 1;
+            }
 
             if (rout.r[2] & 4) // Left mouse button - Thrust forward
             {
@@ -205,7 +230,7 @@ int main(int argc, char *argv[])
                 eyePos.y += camForward.y << 1;
                 eyePos.z += camForward.z << 1;
             }
-            if (rout.r[2] & 1) // Right mouse button - Thrust backward
+            else if (rout.r[2] & 1) // Right mouse button - Thrust backward
             {
                 eyePos.x -= camForward.x >> 1;
                 eyePos.y -= camForward.y >> 1;
@@ -275,7 +300,8 @@ int main(int argc, char *argv[])
 
             ++j;
 
-            g_Mesh.eulers.x ++;
+            g_Mesh.eulers.x++;
+            g_Mesh.eulers.y += 2;
 
 #ifdef TIMING_LOG
             {

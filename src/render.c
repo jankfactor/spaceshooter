@@ -144,7 +144,7 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh)
         if (_verts[0].z <= 0 || _verts[1].z <= 0 || _verts[2].z <= 0)
             continue;
 
-        if (orient2dint(_verts[0], _verts[1], _verts[2]) >= 0)
+        if (orient2dint(_verts[0], _verts[1], _verts[2]) > 0)
         {
             // Rotate face normal by model rotation for correct lighting.
             // Use fixmult (not fixmult_lessThanOne) to avoid 32-bit overflow
@@ -155,7 +155,7 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh)
             tmpVec.z = fixmult(n->x, modelMat.m31) + fixmult(n->y, modelMat.m32) + fixmult(n->z, modelMat.m33);
 
             // Add face to the destination list if it is facing us
-            mesh->faces[i].d = (256 << 6) + clamp((tmpVec.x >> 10), 0, 63);
+            mesh->faces[i].d = (3 << 7) + clamp((tmpVec.x >> 10), 0, 63);
             // Important to invert the depth here as the camera looks into -Z
             // but our g_RenderQueue is indexed by positive numbers
             mesh->faces[i].depth = min((_verts[0].z + _verts[1].z + _verts[2].z) >> 8, MAXDEPTH - 1);

@@ -67,22 +67,38 @@ fs.readFile(filePath, 'utf8', (err, data) => {
 
     const numSteps = 64;
     const closestColors = [];
+    const lightColor = hexToRgb("#030507");
     const targetColor = hexToRgb("#ffffff");
 
+    let lerpOrLighten = false; // Set to true to use linear interpolation, false to use lightening
+
     // Create the color steps towards the target for each color in the palette
-    palette.forEach((color) => {
+    palette.forEach((basePaletteColor) => {
       const colorSteps = [];
+      // Work with a COPY of the palette color, not the original
+      let color = { r: basePaletteColor.r, g: basePaletteColor.g, b: basePaletteColor.b };
 
       for (let i = 0; i < numSteps; i++) {
-        const lerpColor = {
-          r: parseInt(Math.round((1 - i / (numSteps - 1)) * (color.r - targetColor.r) + targetColor.r)),
-          g: parseInt(Math.round((1 - i / (numSteps - 1)) * (color.g - targetColor.g) + targetColor.g)),
-          b: parseInt(Math.round((1 - i / (numSteps - 1)) * (color.b - targetColor.b) + targetColor.b)),
-        };
-
-        const closestColor = findNearestColor(lerpColor, palette);
+        const closestColor = findNearestColor({ r: color.r, g: color.g, b: color.b }, palette);
         const withDetails = { r: closestColor.r, g: closestColor.g, b: closestColor.b, bayerThreshold: 0, nextColor: targetColor };
         colorSteps.push(withDetails);
+
+        if (lerpOrLighten) {
+          // Linear interpolation towards the target color
+          color = {
+            r: parseInt(Math.round((1 - i / (numSteps - 1)) * (color.r - targetColor.r) + targetColor.r)),
+            g: parseInt(Math.round((1 - i / (numSteps - 1)) * (color.g - targetColor.g) + targetColor.g)),
+            b: parseInt(Math.round((1 - i / (numSteps - 1)) * (color.b - targetColor.b) + targetColor.b)),
+          };
+        }
+        else {
+          // Lighten the color by adding a fixed amount each step
+          color = {
+            r: color.r + lightColor.r,
+            g: color.g + lightColor.g,
+            b: color.b + lightColor.b,
+          };
+        }
       }
 
       closestColors.push(colorSteps);
@@ -170,7 +186,7 @@ fs.readFile(filePath, 'utf8', (err, data) => {
     }
 
     png.pack().pipe(fs.createWriteStream(pngFileName));
-  } 
+  }
 
   if (writeLookupTable) {
     console.log('Writing lookup table');
@@ -262,6 +278,10 @@ function colorDifference(color1, color2) {
 function findNearestColor(color, palette) {
   let nearestColor = null;
   let smallestDifference = Infinity;
+
+  color.r = Math.min(color.r, 255);
+  color.g = Math.min(color.g, 255);
+  color.b = Math.min(color.b, 255);
 
   for (const paletteColor of palette) {
     const difference = colorDifference(color, paletteColor);
