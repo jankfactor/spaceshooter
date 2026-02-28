@@ -344,6 +344,8 @@ int LoadOBJ(char *filename)
     // Read faces (format: v1 n1 v2 n2 v3 n3)
     for (i = 0; i < face_count; ++i)
     {
+        int matIndex = 0;
+
         if (!ReadLineSafe(file, line, sizeof(line)))
         {
             printf("ERROR - Failed to read face %d.\r\n", i);
@@ -352,10 +354,11 @@ int LoadOBJ(char *filename)
             return 1;
         }
 
-        if (ScanI32(line, "%d %d %d %d %d %d",
+        if (ScanI32(line, "%d %d %d %d %d %d %d",
+                &matIndex,
                 &vertex_indices[0], &normal_indices[0],
                 &vertex_indices[1], &normal_indices[1],
-                &vertex_indices[2], &normal_indices[2]) != 6)
+                &vertex_indices[2], &normal_indices[2]) != 7)
         {
             printf("ERROR - Failed to parse face %d.\r\n", i);
             fclose(file);
@@ -366,6 +369,7 @@ int LoadOBJ(char *filename)
         face.a = vertex_indices[0] - 1;
         face.b = vertex_indices[1] - 1;
         face.c = vertex_indices[2] - 1;
+        face.d = (matIndex << 7); // Pre-shift depth for lighting calculation
         face.next = NULL;
 
         // Use the first normal index (all 3 should be the same for flat shading)
@@ -373,7 +377,7 @@ int LoadOBJ(char *filename)
 
         cvector_push_back(g_Mesh.faces, face);
     }
-
+    
     if (imported_normals)
     {
         cvector_free(imported_normals);

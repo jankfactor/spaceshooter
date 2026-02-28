@@ -154,10 +154,7 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh)
             tmpVec.y = fixmult(n->x, modelMat.m21) + fixmult(n->y, modelMat.m22) + fixmult(n->z, modelMat.m23);
             tmpVec.z = fixmult(n->x, modelMat.m31) + fixmult(n->y, modelMat.m32) + fixmult(n->z, modelMat.m33);
 
-            // Add face to the destination list if it is facing us
-            mesh->faces[i].d = (3 << 7) + clamp((tmpVec.x >> 10), 0, 63);
-            // Important to invert the depth here as the camera looks into -Z
-            // but our g_RenderQueue is indexed by positive numbers
+            mesh->faces[i].d = (mesh->faces[i].d & 0xFFFFFF80) + clamp((tmpVec.z >> 10), 0, 63);
             mesh->faces[i].depth = min((_verts[0].z + _verts[1].z + _verts[2].z) >> 8, MAXDEPTH - 1);
 
             // Push the previous triangle (if any) onto the stack for this depth.
