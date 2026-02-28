@@ -9,11 +9,10 @@
 #include "math3d.h"
 #include "mesh.h"
 #include "cvector.h"
+#include "render.h"
 
 #define rand32(max) (rand() % (max))
 #define rand32balanced(max) ((rand() % (max)) - ((max) >> 1))
-#define SCREEN_W 320
-#define SCREEN_H 256
 #define NUM_STARS 256
 
 // ASM Routines
@@ -31,13 +30,9 @@ _kernel_oserror *err;
 _kernel_swi_regs rin, rout;
 
 char *gBaseDirectoryPath = NULL;
-int *gEdgeList = NULL;
-extern unsigned int EdgeList;
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
-
-#define MAXDEPTH 256
 
 V3D starfield[NUM_STARS];
 const unsigned char colors[16] = {128, 131, 136, 169, 170, 171, 161, 172, 205, 221, 222, 219, 220, 247, 246, 242};
@@ -57,9 +52,6 @@ int main(int argc, char *argv[])
     unsigned char *ptr;
     V3D _verts[4], tmpVec;
     V2D v[3];
-    TRI *RenderQueue[MAXDEPTH], *queuePtr = NULL;
-
-    memset(&RenderQueue[0], 0, sizeof(TRI *) * MAXDEPTH);
 
     srand((unsigned int)time(NULL));
     for (i = 0; i < NUM_STARS; ++i)
@@ -67,23 +59,17 @@ int main(int argc, char *argv[])
         starfield[i].x = (rand32(0xFFFF));
         starfield[i].y = (rand32(0xFFFF));
         starfield[i].z = (rand32(0xFFFF));
-
-        // printf("Star %d: X=%d Y=%d Z=%d\n\r", i, starfield[i].x, starfield[i].y, starfield[i].z);
     }
 
+    SetupRender(1);
     SetupMathsGlobals(1);
+    SetupPaletteLookup(1);
 
     for (i = 0; i < 1024; ++i)
     {
         g_SineTable[i] = float2fix(sinf((i * M_PI * 2.f) / 1024.f));
         g_oneOver[i] = (i == 0) ? float2fix(1.f) : float2fix(1.f / i);
     }
-
-    // (void)getchar(); // Uncomment to pause here and read data output
-    cvector_reserve(gEdgeList, 256);
-    EdgeList = (unsigned int)(gEdgeList); // For ASM access
-
-    SetupPaletteLookup(1);
 
     gBaseDirectoryPath = getenv("Game$Dir");
     if (LoadOBJ("assets.ship_obj") != 0)
@@ -201,7 +187,7 @@ int main(int argc, char *argv[])
             // Re-orthogonalize periodically (Gram-Schmidt, forward is primary axis).
             // Minsky rotation is self-stabilizing so every-frame correction is unnecessary;
             // amortize the cost of two floating-point Normalize calls across 64 frames.
-            if ((j & 63) == 0)
+            if ((j & 15) == 0)
             {
                 fix d;
                 Normalize(&camForward);
@@ -216,23 +202,18 @@ int main(int argc, char *argv[])
             if (KeyPress(112)) // Escape
                 isRunning = 0;
 
-            // if (rout.r[2] & 4) // Left mouse button - Thrust forward
-            // {
-            //     eyePos.x += camForward.x << 1;
-            //     eyePos.y += camForward.y << 1;
-            //     eyePos.z += camForward.z << 1;
-            // }
+            if (rout.r[2] & 4) // Left mouse button - Thrust forward
+            {
+                eyePos.x += camForward.x << 1;
+                eyePos.y += camForward.y << 1;
+                eyePos.z += camForward.z << 1;
+            }
             if (rout.r[2] & 1) // Right mouse button - Thrust backward
             {
-                eyePos.x += camForward.x;
-                eyePos.y += camForward.y;
-                eyePos.z += camForward.z;
+                eyePos.x -= camForward.x >> 1;
+                eyePos.y -= camForward.y >> 1;
+                eyePos.z -= camForward.z >> 1;
             }
-            /*else {
-                eyePos.x += camForward.x;
-                eyePos.y += camForward.y;
-                eyePos.z += camForward.z;
-            }*/
 
             SwitchScreenBank();             // Swap draw buffer with display buffer
             rin.r[0] = (int)(&swi_data[0]); // Get the new screen start address
@@ -323,12 +304,12 @@ int main(int argc, char *argv[])
                     // Add face to the destination list if it is facing us
                     g_Mesh.faces[i].d = (8 << 9) + clamp((faceNormal->x >> 10), 0, 63);
                     // Important to invert the depth here as the camera looks into -Z
-                    // but our RenderQueue is indexed by positive numbers
+                    // but our g_RenderQueue is indexed by positive numbers
                     g_Mesh.faces[i].depth = min((_verts[0].z + _verts[1].z + _verts[2].z) >> 8, MAXDEPTH - 1);
 
                     // Push the previous triangle (if any) onto the stack for this depth.
-                    g_Mesh.faces[i].next = RenderQueue[g_Mesh.faces[i].depth];
-                    RenderQueue[g_Mesh.faces[i].depth] = &g_Mesh.faces[i];
+                    g_Mesh.faces[i].next = g_RenderQueue[g_Mesh.faces[i].depth];
+                    g_RenderQueue[g_Mesh.faces[i].depth] = &g_Mesh.faces[i];
                 }
             }
 
@@ -337,16 +318,16 @@ int main(int argc, char *argv[])
             // Painter's algorithm. Proceed from furthest to nearest.
             for (i = MAXDEPTH - 1; i >= 0; i--)
             {
-                while (RenderQueue[i])
+                while (g_RenderQueue[i])
                 { // Render faces with current depth
-                    queuePtr = RenderQueue[i];
+                    queuePtr = g_RenderQueue[i];
                     _verts[0] = g_Mesh.verts_transformed[queuePtr->a];
                     _verts[1] = g_Mesh.verts_transformed[queuePtr->b];
                     _verts[2] = g_Mesh.verts_transformed[queuePtr->c];
 
                     FillEdgeLists((unsigned int)(&_verts[0]), queuePtr->d); // color4);
 
-                    RenderQueue[i] = (TRI *)queuePtr->next; // Next face
+                    g_RenderQueue[i] = (TRI *)queuePtr->next; // Next face
                 }
             }
 
@@ -390,10 +371,9 @@ int main(int argc, char *argv[])
     rin.r[1] = 0xFFFFFFFF;
     err = _kernel_swi(OS_Byte, &rin, &rout);
 
-    // Free up memory that was allocated
-    cvector_free(gEdgeList);
     SetupMathsGlobals(0);
     FreeMesh();
+    SetupRender(0);
     SetupPaletteLookup(0);
     printf("Forward: %d, %d, %d\n", camForward.x, camForward.y, camForward.z);
     printf("Eyepos: %d, %d, %d\n", eyePos.x, eyePos.y, eyePos.z);

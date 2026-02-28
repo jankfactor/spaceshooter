@@ -7,20 +7,12 @@
 
 #include "math3d.h"
 
-void SetupRender(void);
+void SetupRender(int allocating);
 void RenderModel(MAT43 *mv, V3D *eyePos, int yaw);
 void MultV3DProj(V3D *v, int *clipflags);
 
-// How many tiles around the look center. i.e., double this for the max tiles ahead.
-// The bigger the number, the more tiles will be rendered.
-
-#ifdef A5000
-    #define SCANRANGE 10
-#else // A3000/A30X0
-    #define SCANRANGE 6
-#endif
-
-#define SUBRANGE ((SCANRANGE - 1) << 8)
+extern TRI *g_RenderQueue[MAXDEPTH];
+extern TRI *queuePtr;
 
 // Uncomment the following to enable the timing log.
 // #define TIMING_LOG 1
