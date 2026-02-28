@@ -165,11 +165,23 @@ void RotateAxis(MAT43 *mat, V3D *axis, int angle);
 void EulerToMat(MAT43 *mat, int heading, int pitch, int bank);
 void Normal(V3D *a, V3D *b, V3D *c, V3D *n);
 void Normalize(V3D *v);
-fix DotProduct(const V3D *v1, const V3D *v2);
 V3D SubV3D(const V3D *a, const V3D *b);
-V3D CrossProductV3D(const V3D *a, const V3D *b);
 void LookAt(const V3D *eyePos, const V3D *forward, MAT43 *mat);
 void ViewMatrix(const V3D *p, const V3D *rpy, MAT43 *mat);
 void PerspectiveProjection(MAT44 *mat, float fov, float aspect, float znear, float zfar);
+
+static inline __attribute__((always_inline)) fix DotProduct(const V3D *v1, const V3D *v2)
+{
+    return fixmult(v1->x, v2->x) + fixmult(v1->y, v2->y) + fixmult(v1->z, v2->z);
+}
+
+static inline __attribute__((always_inline)) V3D CrossProductV3D(const V3D *a, const V3D *b)
+{
+    V3D result;
+    result.x = fixmult(a->y, b->z) - fixmult(a->z, b->y);
+    result.y = fixmult(a->z, b->x) - fixmult(a->x, b->z);
+    result.z = fixmult(a->x, b->y) - fixmult(a->y, b->x);
+    return result;
+}
 
 #endif // MATH3D_H

@@ -10,7 +10,6 @@
 
 void SetupRender(int allocating);
 void RenderModel(MAT43 *viewMat, Mesh *mesh);
-void MultV3DProj(V3D *v, int *clipflags);
 
 extern TRI *g_RenderQueue[MAXDEPTH];
 extern TRI *queuePtr;

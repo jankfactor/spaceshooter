@@ -13,16 +13,7 @@ TRI *queuePtr = NULL;
 int *gEdgeList = NULL;
 extern unsigned int EdgeList;
 
-int gDebug = 0;
 
-#define MAX_EXTRA_VERTS 192
-#define MAX_EXTRA_TRIS 64
-
-TRI *clippedQueue1 = 0;
-V3D clippedNearVerts[MAX_EXTRA_VERTS];
-int clippedNearVertIndex = 0;
-TRI clippedNearTris[MAX_EXTRA_TRIS];
-int clippedNearTrisIndex = 0;
 
 #ifdef TIMING_LOG
 TimerLog gTimerLog;
@@ -112,8 +103,8 @@ void SetupRender(int allocating)
 
 void RenderModel(MAT43 *viewMat, Mesh *mesh)
 {
-    MAT43 modelMat;
-    V3D _verts[4], tmpVec, worldPos;
+    MAT43 modelMat, modelViewMat;
+    V3D _verts[4], tmpVec;
     V3D *vPtr;
     int i;
 
@@ -123,12 +114,14 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh)
     modelMat.ty = mesh->position.y;
     modelMat.tz = mesh->position.z;
 
-    // Transform vertices: object space -> world space -> view space
+    // Combine model and view into a single matrix (column-vector: viewMat * modelMat)
+    MultMatMat(&modelViewMat, viewMat, &modelMat);
+
+    // Transform vertices: object space -> view space in one step
     for (i = 0; i < cvector_size(mesh->verts); ++i)
     {
         vPtr = &mesh->verts_transformed[i];
-        MultV3DMat(&mesh->verts[i], &worldPos, &modelMat); // Local rotation + world position
-        MultV3DMat(&worldPos, vPtr, viewMat);               // World -> view space
+        MultV3DMat(&mesh->verts[i], vPtr, &modelViewMat);
         ProjectVertex((int)(vPtr));                         // Perspective projection (skips if Z <= 0)
     }
 

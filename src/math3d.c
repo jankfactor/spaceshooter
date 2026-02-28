@@ -158,20 +158,31 @@ void Normal(V3D *a, V3D *b, V3D *c, V3D *n)
 
 void Normalize(V3D *v)
 {
-    double len, x, y, z;
-    x = fix2float(v->x);
-    y = fix2float(v->y);
-    z = fix2float(v->z);
-    len = sqrt(x * x + y * y + z * z);
+    // All-integer normalize: avoids FP emulator traps on ARM2/3.
+    // Compute squared length in 16.16 fixed-point.
+    fix sq = fixmult(v->x, v->x) + fixmult(v->y, v->y) + fixmult(v->z, v->z);
+    unsigned int n, x, y;
 
-    v->x = float2fix((float)(x / len));
-    v->y = float2fix((float)(y / len));
-    v->z = float2fix((float)(z / len));
-}
+    if (sq <= 0) return;
 
-fix DotProduct(const V3D *v1, const V3D *v2)
-{
-    return fixmult(v1->x, v2->x) + fixmult(v1->y, v2->y) + fixmult(v1->z, v2->z);
+    // Integer square root (Newton-Raphson).
+    // isqrt(sq) = sqrt(real_value * 65536) = sqrt(real_value) * 256,
+    // i.e. the length in 8.8 fixed-point representation.
+    n = (unsigned int)sq;
+    x = n;
+    y = (x + 1) >> 1;
+    while (y < x) {
+        x = y;
+        y = (x + n / x) >> 1;
+    }
+
+    // x = length * 256 (8.8 representation).
+    // Divide each component by length to normalize:
+    // v_i (16.16) / length (16.16) → (v_i << 8) / x
+    if (x == 0) return;
+    v->x = (v->x << 8) / (fix)x;
+    v->y = (v->y << 8) / (fix)x;
+    v->z = (v->z << 8) / (fix)x;
 }
 
 void MultMatMat(MAT43 *dest, MAT43 *a, MAT43 *b)
@@ -189,10 +200,10 @@ void MultMatMat(MAT43 *dest, MAT43 *a, MAT43 *b)
     tmp.m32 = fixmult(a->m31, b->m12) + fixmult(a->m32, b->m22) + fixmult(a->m33, b->m32);
     tmp.m33 = fixmult(a->m31, b->m13) + fixmult(a->m32, b->m23) + fixmult(a->m33, b->m33);
 
-    // Translation
-    tmp.tx = fixmult(a->tx, b->m11) + fixmult(a->ty, b->m21) + fixmult(a->tz, b->m31) + b->tx;
-    tmp.ty = fixmult(a->tx, b->m12) + fixmult(a->ty, b->m22) + fixmult(a->tz, b->m32) + b->ty;
-    tmp.tz = fixmult(a->tx, b->m13) + fixmult(a->ty, b->m23) + fixmult(a->tz, b->m33) + b->tz;
+    // Translation (column-vector convention: dest_t = A_rot * B_t + A_t)
+    tmp.tx = fixmult(a->m11, b->tx) + fixmult(a->m12, b->ty) + fixmult(a->m13, b->tz) + a->tx;
+    tmp.ty = fixmult(a->m21, b->tx) + fixmult(a->m22, b->ty) + fixmult(a->m23, b->tz) + a->ty;
+    tmp.tz = fixmult(a->m31, b->tx) + fixmult(a->m32, b->ty) + fixmult(a->m33, b->tz) + a->tz;
 
     *dest = tmp;
 }
@@ -203,15 +214,6 @@ V3D SubV3D(const V3D *a, const V3D *b)
     result.x = a->x - b->x;
     result.y = a->y - b->y;
     result.z = a->z - b->z;
-    return result;
-}
-
-V3D CrossProductV3D(const V3D *a, const V3D *b)
-{
-    V3D result;
-    result.x = fixmult(a->y, b->z) - fixmult(a->z, b->y);
-    result.y = fixmult(a->z, b->x) - fixmult(a->x, b->z);
-    result.z = fixmult(a->x, b->y) - fixmult(a->y, b->x);
     return result;
 }
 

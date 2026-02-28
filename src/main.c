@@ -257,15 +257,13 @@ int main(int argc, char *argv[])
             mat.ty = -DotProduct(&camUp, &eyePos);
             mat.tz = -DotProduct(&camForward, &eyePos);
 
-#ifdef PAL_256
             ClearScreen(0x0, 1); // Clear the new draw buffer
-#else
-            ClearScreen(0x0, 1); // Clear the new draw buffer
-#endif // PAL_256
 
             int quantEyeX = eyePos.x >> 8;
             int quantEyeY = eyePos.y >> 8;
             int quantEyeZ = eyePos.z >> 8;
+
+            ptr = (unsigned char *)(swi_data[3]);
 
             for (i = 0; i < NUM_STARS; ++i)
             {
@@ -291,9 +289,7 @@ int main(int argc, char *argv[])
                 if (tmp.x < 0 || tmp.x >= SCREEN_W || tmp.y < 0 || tmp.y >= SCREEN_H)
                     continue;
 
-                ptr = (unsigned char *)(swi_data[3]);
-                ptr += (tmp.y * SCREEN_W) + tmp.x;
-                *ptr = colors[15 - min(tmp.z >> 12, 15)];
+                *(ptr + (tmp.y * SCREEN_W) + tmp.x) = colors[15 - min(tmp.z >> 12, 15)];
             }
 
             RenderModel(&mat, &g_Mesh);
