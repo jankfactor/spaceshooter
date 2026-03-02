@@ -12,10 +12,6 @@
 #include "render.h"
 #include "utils.h"
 
-#define rand32(max) (rand() % (max))
-#define rand32balanced(max) ((rand() % (max)) - ((max) >> 1))
-#define NUM_STARS 256
-
 // ASM Routines
 extern void VDUSetup(void);
 extern void UpdateMemAddress(int screenStart, int screenMax);
@@ -35,10 +31,6 @@ char *gBaseDirectoryPath = NULL;
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
-V3D starfield[NUM_STARS];
-const unsigned char colors[16] = {128, 131, 136, 169, 170, 171, 161, 172, 205, 221, 222, 219, 220, 247, 246, 242};
-// {0, 1, 2, 3, 44, 45, 46, 47, 208, 209, 210, 211, 252, 253, 254, 255};
-
 int main(int argc, char *argv[])
 {
     int i, j = 0, swi_data[10], isRunning = 1;
@@ -52,12 +44,6 @@ int main(int argc, char *argv[])
     unsigned char *ptr;
 
     srand((unsigned int)time(NULL));
-    for (i = 0; i < NUM_STARS; ++i)
-    {
-        starfield[i].x = (rand32(0xFFFF));
-        starfield[i].y = (rand32(0xFFFF));
-        starfield[i].z = (rand32(0xFFFF));
-    }
 
     SetupRender(1);
     SetupMathsGlobals(1);
@@ -224,17 +210,24 @@ int main(int argc, char *argv[])
                 eyePos.z -= camUp.z >> 1;
             }
 
-            if (rout.r[2] & 4) // Left mouse button - Thrust forward
+            // if (rout.r[2] & 4) // Left mouse button - Thrust forward
+            // {
+            //     eyePos.x += camForward.x << 1;
+            //     eyePos.y += camForward.y << 1;
+            //     eyePos.z += camForward.z << 1;
+            // }
+            // else if (rout.r[2] & 1) // Right mouse button - Thrust backward
+            // {
+            //     eyePos.x -= camForward.x >> 1;
+            //     eyePos.y -= camForward.y >> 1;
+            //     eyePos.z -= camForward.z >> 1;
+            // }
+
+            if (!(rout.r[2] & 1)) // Right mouse button not pressed - Thrust forward
             {
-                eyePos.x += camForward.x << 1;
-                eyePos.y += camForward.y << 1;
-                eyePos.z += camForward.z << 1;
-            }
-            else if (rout.r[2] & 1) // Right mouse button - Thrust backward
-            {
-                eyePos.x -= camForward.x >> 1;
-                eyePos.y -= camForward.y >> 1;
-                eyePos.z -= camForward.z >> 1;
+                eyePos.x += camForward.x;
+                eyePos.y += camForward.y;
+                eyePos.z += camForward.z;
             }
 
             SwitchScreenBank();             // Swap draw buffer with display buffer
@@ -265,39 +258,19 @@ int main(int argc, char *argv[])
 
             ptr = (unsigned char *)(swi_data[3]);
 
-            for (i = 0; i < NUM_STARS; ++i)
-            {
-                // Wrap star position relative to eye into -64..+63 range (128 unit cube)
-                tmp2.x = starfield[i].x;
-                tmp2.x -= quantEyeX;
-                tmp2.x &= 0xFFFF;
-                tmp2.x -= 0x8000;
-                tmp2.y = starfield[i].y;
-                tmp2.y -= quantEyeY;
-                tmp2.y &= 0xFFFF;
-                tmp2.y -= 0x8000;
-                tmp2.z = starfield[i].z;
-                tmp2.z -= quantEyeZ;
-                tmp2.z &= 0xFFFF;
-                tmp2.z -= 0x8000;
-                MultV3DMat_NoTranslate(&tmp2, &tmp, &mat);
-                if (tmp.z <= 0)
-                    continue;
-
-                ProjectVertex((int)(&tmp));
-
-                if (tmp.x < 0 || tmp.x >= SCREEN_W || tmp.y < 0 || tmp.y >= SCREEN_H)
-                    continue;
-
-                *(ptr + (tmp.y * SCREEN_W) + tmp.x) = colors[15 - min(tmp.z >> 12, 15)];
-            }
-
+            RenderStarfield(&mat, eyePos, ptr);
             RenderModel(&mat, &g_Mesh);
 
             ++j;
 
-            g_Mesh.eulers.x++;
-            g_Mesh.eulers.y += 2;
+            if (j % 64  == 0)
+            {
+                g_Mesh.rollPerFrame = rand()%11 - 5;
+                g_Mesh.pitchPerFrame = rand()%11 - 5;
+            }
+
+            g_Mesh.eulers.x += g_Mesh.pitchPerFrame;
+            g_Mesh.eulers.z += g_Mesh.rollPerFrame;
 
 #ifdef TIMING_LOG
             {

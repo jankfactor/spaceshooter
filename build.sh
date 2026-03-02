@@ -10,6 +10,48 @@ export TARGETCOPY=/home/nick/git/arculator/install/hostfs
 export USE_256_COLORS=yes
 export TARGET_A5000=no
 
+# Handle "asm" mode: compile C sources to assembly and exit
+if [ "$1" = "asm" ]; then
+    # C source files (excluding poly.s which is already assembly)
+    C_SOURCES="main.c math3d.c palette.c mesh.c render.c"
+
+    ASMDIR=../
+    mkdir -p "$ASMDIR"
+
+    # Determine compiler and flags based on toolchain
+    if [ "$TOOLCHAIN" = "GCCSDK" ]; then
+        CC=$(ls ${GCCSDK_INSTALL_CROSSBIN}/*gcc 2>/dev/null | head -1)
+        TFLAGS="-O2 -mlibscl"
+        TINCLUDES="-I${GCCSDK_INSTALL_ENV}/include"
+    elif [ "$TOOLCHAIN" = "ARCHIESDK" ]; then
+        . ${ARCHIESDK}/config.mk 2>/dev/null || true
+        CC="${ARCHIECC}"
+        TFLAGS="-O2"
+        TINCLUDES=""
+    else
+        echo "Unknown TOOLCHAIN: $TOOLCHAIN"
+        exit 1
+    fi
+
+    # Apply feature flags
+    if [ "$TARGET_A5000" = "yes" ]; then
+        TFLAGS="$TFLAGS -DA5000"
+    fi
+    if [ "$USE_256_COLORS" = "yes" ]; then
+        TFLAGS="$TFLAGS -DPAL_256"
+    fi
+
+    echo "Generating assembly files into asm/ using $TOOLCHAIN toolchain"
+    cd src
+    for src in $C_SOURCES; do
+        outfile="$ASMDIR/$(echo "$src" | sed 's/\.c$/.s/')"
+        echo "  $src -> $outfile"
+        $CC -S $TFLAGS $TINCLUDES "$src" -o "$outfile"
+    done
+    echo "Done. Assembly files written to asm/"
+    exit 0
+fi
+
 cd src
 if [ "$TOOLCHAIN" = "GCCSDK" ]; then
     echo "Using GCCSDK toolchain"

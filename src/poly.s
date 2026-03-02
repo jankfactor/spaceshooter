@@ -839,7 +839,7 @@ ProjectVertex:
         MOV     R5, R3          // Put the divisor in R5.
         CMP     R5, R4, LSR #1  // Then double it until
 LProjectVertex__local_10_4:
-                           MOVLS   R5, R5, LSL #1  // 2 * R5 > R4.
+        MOVLS   R5, R5, LSL #1  // 2 * R5 > R4.
         CMP     R5, R4, LSR #1
         BLS     LProjectVertex__local_10_4           // Loop until 2 * R5 > R4
         MOV     R6, #0          // Initialise the quotient
@@ -863,7 +863,7 @@ LProjectVertex__local_20_4:
         MOV     R5, R3          // Put the divisor in R5.
         CMP     R5, R4, LSR #1  // Then double it until
 LProjectVertex__local_30_4:
-                           MOVLS   R5, R5, LSL #1  // 2 * R5 > R4.
+        MOVLS   R5, R5, LSL #1  // 2 * R5 > R4.
         CMP     R5, R4, LSR #1
         BLS     LProjectVertex__local_30_4
         MOV     R6, #0          // Initialise the quotient

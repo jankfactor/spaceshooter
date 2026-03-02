@@ -13,7 +13,12 @@ TRI *queuePtr = NULL;
 int *gEdgeList = NULL;
 extern unsigned int EdgeList;
 
+#define NUM_STARS 256
+#define rand32(max) (rand() % (max))
+#define rand32balanced(max) ((rand() % (max)) - ((max) >> 1))
 
+V3D starfield[NUM_STARS];
+const unsigned char colors[16] = {128, 131, 136, 169, 170, 171, 161, 172, 205, 221, 222, 219, 220, 247, 246, 242};
 
 #ifdef TIMING_LOG
 TimerLog gTimerLog;
@@ -34,11 +39,20 @@ int GetRenderDelta(void)
 
 void SetupRender(int allocating)
 {
+    int i;
+
     memset(g_RenderQueue, 0, MAXDEPTH * sizeof(TRI *));
     if (allocating)
     {
         cvector_reserve(gEdgeList, 256);
         EdgeList = (unsigned int)(gEdgeList); // For ASM access
+
+        for (i = 0; i < NUM_STARS; ++i)
+        {
+            starfield[i].x = (rand32(0xFFFF));
+            starfield[i].y = (rand32(0xFFFF));
+            starfield[i].z = (rand32(0xFFFF));
+        }
     }
     else
     {
@@ -101,6 +115,38 @@ void SetupRender(int allocating)
 //     *p = inside;
 // }
 
+void RenderStarfield(MAT43 *viewMat, V3D eyePos, unsigned char *ptr)
+{
+    V3D tmp, tmp2;
+    V3D *vPtr;
+    int i;
+
+    vPtr = &starfield[0];
+
+    eyePos.x >>= 8;
+    eyePos.y >>= 8;
+    eyePos.z >>= 8;
+
+    for (i = 0; i < NUM_STARS; ++i)
+    {
+        tmp2.x = ((vPtr->x - eyePos.x) & 0xFFFF) - 0x8000;
+        tmp2.y = ((vPtr->y - eyePos.y) & 0xFFFF) - 0x8000;
+        tmp2.z = ((vPtr->z - eyePos.z) & 0xFFFF) - 0x8000;       
+        vPtr++;
+
+        MultV3DMat_NoTranslate(&tmp2, &tmp, viewMat);
+        if (tmp.z <= 0)
+            continue;
+
+        ProjectVertex((int)(&tmp));
+
+        if (tmp.x < 0 || tmp.x >= SCREEN_W || tmp.y < 0 || tmp.y >= SCREEN_H)
+            continue;
+
+        *(ptr + (tmp.y * SCREEN_W) + tmp.x) = 242;//colors[15 - min(tmp.z >> 12, 15)];
+    }
+}
+
 void RenderModel(MAT43 *viewMat, Mesh *mesh)
 {
     MAT43 modelMat, modelViewMat;
@@ -128,7 +174,7 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh)
     {
         vPtr = &mesh->verts_transformed[i];
         MultV3DMat(&mesh->verts[i], vPtr, &modelViewMat);
-        ProjectVertex((int)(vPtr));                         // Perspective projection (skips if Z <= 0)
+        ProjectVertex((int)(vPtr)); // Perspective projection (skips if Z <= 0)
     }
 
     // Backface cull and insert visible faces into the depth-sorted render queue
