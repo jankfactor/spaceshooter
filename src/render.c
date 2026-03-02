@@ -110,6 +110,12 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh)
 
     // Build local model matrix from mesh eulers and position
     EulerToMat(&modelMat, mesh->eulers.x, mesh->eulers.y, mesh->eulers.z);
+
+    // Advance mesh along its forward vector (3rd column of rotation matrix)
+    mesh->position.x -= fixmult(modelMat.m13, mesh->speed);
+    mesh->position.y -= fixmult(modelMat.m23, mesh->speed);
+    mesh->position.z -= fixmult(modelMat.m33, mesh->speed);
+
     modelMat.tx = mesh->position.x;
     modelMat.ty = mesh->position.y;
     modelMat.tz = mesh->position.z;

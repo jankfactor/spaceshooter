@@ -8,6 +8,9 @@ typedef struct Mesh
 {
     V3D position;
     V3D eulers;
+    fix speed;
+    fix rollPerFrame;
+    fix pitchPerFrame;
 
     cvector_vector_type(V3D) verts;
     cvector_vector_type(TRI) faces;
