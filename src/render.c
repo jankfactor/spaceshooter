@@ -13,7 +13,7 @@ TRI *queuePtr = NULL;
 int *gEdgeList = NULL;
 extern unsigned int EdgeList;
 
-#define NUM_STARS 256
+#define NUM_STARS 128
 #define rand32(max) (rand() % (max))
 #define rand32balanced(max) ((rand() % (max)) - ((max) >> 1))
 

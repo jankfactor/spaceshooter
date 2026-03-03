@@ -34,13 +34,13 @@ char *gBaseDirectoryPath = NULL;
 
 int main(int argc, char *argv[])
 {
-    int i, j = 0, swi_data[10], isRunning = 1;
-    int rollRate, pitchRate, delta;
+    int i = 0, j = 0, swi_data[10], isRunning = 1;
+    int rollRate = 0, pitchRate = 0, delta = 0;
     V3D eyePos;
     V3D tmp, tmp2;
     V3D camRight, camUp, camForward;
     MAT43 mat;
-    int mouseX, mouseY;
+    int mouseX = 0, mouseY = 0;
     unsigned char block[9];
     unsigned char *ptr;
 
@@ -137,9 +137,10 @@ int main(int argc, char *argv[])
 
     if (err == NULL)
     {
+        j = GetMonotonicTime();
+
         while (isRunning)
         {
-            j = GetMonotonicTime();
 
             err = _kernel_swi(OS_Mouse, &rin, &rout); // Get the mouse position
             rollRate = clamp((mouseX - rout.r[0]) >> 7, -32, 32);
@@ -228,9 +229,9 @@ int main(int argc, char *argv[])
 
             if (!(rout.r[2] & 1)) // Right mouse button not pressed - Thrust forward
             {
-                eyePos.x += fixmult(camForward.x, 20000 * delta);
-                eyePos.y += fixmult(camForward.y, 20000 * delta);
-                eyePos.z += fixmult(camForward.z, 20000 * delta);
+                eyePos.x += fixmult(camForward.x, 20000) * delta;
+                eyePos.y += fixmult(camForward.y, 20000) * delta;
+                eyePos.z += fixmult(camForward.z, 20000) * delta;
             }
 
             SwitchScreenBank();             // Swap draw buffer with display buffer
@@ -261,12 +262,11 @@ int main(int argc, char *argv[])
 
             ptr = (unsigned char *)(swi_data[3]);
 
-            RenderStarfield(&mat, eyePos, ptr);
-            RenderModel(&mat, &g_Mesh, delta);
-
             // printf("DISt     :  %d", dist);
-            delta = GetMonotonicTime() - j;
-            if (j % 400 == 0)
+            delta = j;
+            j = GetMonotonicTime();
+            delta = j - delta;
+            if (j % 1000 == 0)
             {
                 g_Mesh.rollPerFrame = rand()%5 - 2;
                 g_Mesh.pitchPerFrame = rand()%5 - 2;
@@ -275,9 +275,12 @@ int main(int argc, char *argv[])
             g_Mesh.eulers.x += g_Mesh.pitchPerFrame * delta;
             g_Mesh.eulers.z += g_Mesh.rollPerFrame * delta;
 
+            RenderStarfield(&mat, eyePos, ptr);
+            RenderModel(&mat, &g_Mesh, delta);
+
             // rin.r[0] = 30;
             // err = _kernel_swi(OS_WriteC, &rin, &rout);
-            // printf("\nMONOTONIC TIME : %d", delta);
+            // printf("\nMONOTONIC TIME : %d", GetMonotonicTime());
 
 #ifdef TIMING_LOG
             {

@@ -391,7 +391,7 @@ int LoadOBJ(char *filename)
 
     g_Mesh.position = (V3D){0, 0, 0};
     g_Mesh.eulers = (V3D){0, 0, 0};
-    g_Mesh.speed = float2fix(0.3);
+    g_Mesh.speed = float2fix(0.3f);
     g_Mesh.rollPerFrame = 0;
     g_Mesh.pitchPerFrame = 0;
 
