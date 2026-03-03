@@ -10,7 +10,7 @@
 
 void SetupRender(int allocating);
 void RenderStarfield(MAT43 *viewMat, V3D eyePos, unsigned char *ptr);
-void RenderModel(MAT43 *viewMat, Mesh *mesh);
+void RenderModel(MAT43 *viewMat, Mesh *mesh, int delta);
 
 extern TRI *g_RenderQueue[MAXDEPTH];
 extern TRI *queuePtr;

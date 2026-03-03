@@ -147,7 +147,7 @@ void RenderStarfield(MAT43 *viewMat, V3D eyePos, unsigned char *ptr)
     }
 }
 
-void RenderModel(MAT43 *viewMat, Mesh *mesh)
+void RenderModel(MAT43 *viewMat, Mesh *mesh, int delta)
 {
     MAT43 modelMat, modelViewMat;
     V3D _verts[4], tmpVec;
@@ -158,9 +158,9 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh)
     EulerToMat(&modelMat, mesh->eulers.x, mesh->eulers.y, mesh->eulers.z);
 
     // Advance mesh along its forward vector (3rd column of rotation matrix)
-    mesh->position.x -= fixmult(modelMat.m13, mesh->speed);
-    mesh->position.y -= fixmult(modelMat.m23, mesh->speed);
-    mesh->position.z -= fixmult(modelMat.m33, mesh->speed);
+    mesh->position.x -= fixmult(modelMat.m13, mesh->speed * delta);
+    mesh->position.y -= fixmult(modelMat.m23, mesh->speed * delta);
+    mesh->position.z -= fixmult(modelMat.m33, mesh->speed * delta);
 
     modelMat.tx = mesh->position.x;
     modelMat.ty = mesh->position.y;

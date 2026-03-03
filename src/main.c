@@ -21,6 +21,7 @@ extern void ClearScreen(int color, int fullclear);
 extern int KeyPress(int keyCode);
 extern void FillEdgeLists(int triList, int color);
 extern void ProjectVertex(int vertexPtr);
+extern int GetMonotonicTime(void);
 
 // SWI access
 _kernel_oserror *err;
@@ -34,7 +35,7 @@ char *gBaseDirectoryPath = NULL;
 int main(int argc, char *argv[])
 {
     int i, j = 0, swi_data[10], isRunning = 1;
-    int rollRate, pitchRate;
+    int rollRate, pitchRate, delta;
     V3D eyePos;
     V3D tmp, tmp2;
     V3D camRight, camUp, camForward;
@@ -138,6 +139,8 @@ int main(int argc, char *argv[])
     {
         while (isRunning)
         {
+            j = GetMonotonicTime();
+
             err = _kernel_swi(OS_Mouse, &rin, &rout); // Get the mouse position
             rollRate = clamp((mouseX - rout.r[0]) >> 7, -32, 32);
             pitchRate = clamp((mouseY - rout.r[1]) >> 7, -32, 32);
@@ -171,7 +174,7 @@ int main(int argc, char *argv[])
             // Re-orthogonalize periodically (Gram-Schmidt, forward is primary axis).
             // Minsky rotation is self-stabilizing so every-frame correction is unnecessary;
             // amortize the cost of two floating-point Normalize calls across 64 frames.
-            if ((j & 15) == 0)
+            if ((j % 100) == 0)
             {
                 fix d;
                 Normalize(&camForward);
@@ -225,9 +228,9 @@ int main(int argc, char *argv[])
 
             if (!(rout.r[2] & 1)) // Right mouse button not pressed - Thrust forward
             {
-                eyePos.x += camForward.x;
-                eyePos.y += camForward.y;
-                eyePos.z += camForward.z;
+                eyePos.x += fixmult(camForward.x, 20000 * delta);
+                eyePos.y += fixmult(camForward.y, 20000 * delta);
+                eyePos.z += fixmult(camForward.z, 20000 * delta);
             }
 
             SwitchScreenBank();             // Swap draw buffer with display buffer
@@ -259,18 +262,22 @@ int main(int argc, char *argv[])
             ptr = (unsigned char *)(swi_data[3]);
 
             RenderStarfield(&mat, eyePos, ptr);
-            RenderModel(&mat, &g_Mesh);
+            RenderModel(&mat, &g_Mesh, delta);
 
-            ++j;
-
-            if (j % 64  == 0)
+            // printf("DISt     :  %d", dist);
+            delta = GetMonotonicTime() - j;
+            if (j % 400 == 0)
             {
-                g_Mesh.rollPerFrame = rand()%11 - 5;
-                g_Mesh.pitchPerFrame = rand()%11 - 5;
+                g_Mesh.rollPerFrame = rand()%5 - 2;
+                g_Mesh.pitchPerFrame = rand()%5 - 2;
             }
 
-            g_Mesh.eulers.x += g_Mesh.pitchPerFrame;
-            g_Mesh.eulers.z += g_Mesh.rollPerFrame;
+            g_Mesh.eulers.x += g_Mesh.pitchPerFrame * delta;
+            g_Mesh.eulers.z += g_Mesh.rollPerFrame * delta;
+
+            // rin.r[0] = 30;
+            // err = _kernel_swi(OS_WriteC, &rin, &rout);
+            // printf("\nMONOTONIC TIME : %d", delta);
 
 #ifdef TIMING_LOG
             {

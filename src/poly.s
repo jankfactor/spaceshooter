@@ -4,6 +4,7 @@
 .set OS_ReadModeVariable, 53
 .set OS_RemoveCursors, 54
 .set OS_ReadDynamicArea, 92
+.set OS_ReadMonotonicTime, 66
 
         .section .text, "ax"
 
@@ -886,5 +887,11 @@ NoDivide:
         ADD r2,r2,#128
 
         STMFD r0!,{r1-r3}  // Store X, Y, Z back to the vertex
+        MOV pc,lr
+
+        // Returns monotonic time in centiseconds in r0
+        .global GetMonotonicTime 
+GetMonotonicTime:
+        SWI OS_ReadMonotonicTime
         MOV pc,lr
 
