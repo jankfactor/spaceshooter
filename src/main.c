@@ -35,7 +35,7 @@ char *gBaseDirectoryPath = NULL;
 int main(int argc, char *argv[])
 {
     int i = 0, j = 0, swi_data[10], isRunning = 1;
-    int rollRate = 0, pitchRate = 0, delta = 0;
+    int rollRate = 0, pitchRate = 0, delta = 0, lastTime = 0;
     V3D eyePos;
     V3D tmp, tmp2;
     V3D camRight, camUp, camForward;
@@ -137,11 +137,10 @@ int main(int argc, char *argv[])
 
     if (err == NULL)
     {
-        j = GetMonotonicTime();
-
+        delta = 0;
+        lastTime = GetMonotonicTime();
         while (isRunning)
         {
-
             err = _kernel_swi(OS_Mouse, &rin, &rout); // Get the mouse position
             rollRate = clamp((mouseX - rout.r[0]) >> 7, -32, 32);
             pitchRate = clamp((mouseY - rout.r[1]) >> 7, -32, 32);
@@ -175,7 +174,7 @@ int main(int argc, char *argv[])
             // Re-orthogonalize periodically (Gram-Schmidt, forward is primary axis).
             // Minsky rotation is self-stabilizing so every-frame correction is unnecessary;
             // amortize the cost of two floating-point Normalize calls across 64 frames.
-            if ((j % 100) == 0)
+            if ((j % 256) == 0)
             {
                 fix d;
                 Normalize(&camForward);
@@ -185,6 +184,9 @@ int main(int argc, char *argv[])
                 camRight.z -= fixmult(d, camForward.z);
                 Normalize(&camRight);
                 camUp = CrossProductV3D(&camForward, &camRight);
+
+                g_Mesh.rollPerFrame = rand() % 5 - 2;
+                g_Mesh.pitchPerFrame = rand() % 5 - 2;
             }
 
             if (KeyPress(KEY_ESCAPE)) // Escape
@@ -227,13 +229,6 @@ int main(int argc, char *argv[])
             //     eyePos.z -= camForward.z >> 1;
             // }
 
-            if (!(rout.r[2] & 1)) // Right mouse button not pressed - Thrust forward
-            {
-                eyePos.x += fixmult(camForward.x, 20000) * delta;
-                eyePos.y += fixmult(camForward.y, 20000) * delta;
-                eyePos.z += fixmult(camForward.z, 20000) * delta;
-            }
-
             SwitchScreenBank();             // Swap draw buffer with display buffer
             rin.r[0] = (int)(&swi_data[0]); // Get the new screen start address
             rin.r[1] = (int)(&swi_data[3]); // Results
@@ -254,7 +249,7 @@ int main(int argc, char *argv[])
             mat.ty = -DotProduct(&camUp, &eyePos);
             mat.tz = -DotProduct(&camForward, &eyePos);
 
-            ClearScreen(0x0, 1); // Clear the new draw buffer
+            ClearScreen(0x0E0E0E0E, 0); // Clear the new draw buffer
 
             int quantEyeX = eyePos.x >> 8;
             int quantEyeY = eyePos.y >> 8;
@@ -262,22 +257,24 @@ int main(int argc, char *argv[])
 
             ptr = (unsigned char *)(swi_data[3]);
 
+            RenderStarfield(&mat, eyePos, ptr);
+            RenderModel(&mat, &g_Mesh, delta);
+
             // printf("DISt     :  %d", dist);
-            delta = j;
-            j = GetMonotonicTime();
-            delta = j - delta;
-            if (j % 1000 == 0)
-            {
-                g_Mesh.rollPerFrame = rand()%5 - 2;
-                g_Mesh.pitchPerFrame = rand()%5 - 2;
-            }
+            delta = max(GetMonotonicTime() - lastTime, 1);
+            lastTime = GetMonotonicTime();
 
             g_Mesh.eulers.x += g_Mesh.pitchPerFrame * delta;
             g_Mesh.eulers.z += g_Mesh.rollPerFrame * delta;
 
-            RenderStarfield(&mat, eyePos, ptr);
-            RenderModel(&mat, &g_Mesh, delta);
+            if (!(rout.r[2] & 1)) // Right mouse button not pressed - Thrust forward
+            {
+                eyePos.x += fixmult(camForward.x, 20000) * delta;
+                eyePos.y += fixmult(camForward.y, 20000) * delta;
+                eyePos.z += fixmult(camForward.z, 20000) * delta;
+            }
 
+            ++j;
             // rin.r[0] = 30;
             // err = _kernel_swi(OS_WriteC, &rin, &rout);
             // printf("\nMONOTONIC TIME : %d", GetMonotonicTime());

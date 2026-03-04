@@ -44,7 +44,7 @@ void SetupRender(int allocating)
     memset(g_RenderQueue, 0, MAXDEPTH * sizeof(TRI *));
     if (allocating)
     {
-        cvector_reserve(gEdgeList, 256);
+        cvector_reserve(gEdgeList, SCREEN_H);
         EdgeList = (unsigned int)(gEdgeList); // For ASM access
 
         for (i = 0; i < NUM_STARS; ++i)

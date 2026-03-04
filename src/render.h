@@ -2,7 +2,7 @@
 #define RENDER_H
 
 #define SCREEN_W 320
-#define SCREEN_H 256
+#define SCREEN_H 200
 #define MAXDEPTH 256
 
 #include "math3d.h"

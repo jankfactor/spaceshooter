@@ -5,10 +5,13 @@
 .set OS_RemoveCursors, 54
 .set OS_ReadDynamicArea, 92
 .set OS_ReadMonotonicTime, 66
+.set ScreenWidth, 320
+.set HalfScreenWidth, 160
+.set ScreenHeight, 200
+.set HalfScreenHeight, 100
+.set ScreenHeightLimit, 199
 
         .section .text, "ax"
-
-.set ScreenHeightLimit, 255
 
         .global EdgeList
         .global FogTable  
@@ -110,7 +113,7 @@ ClearScreen:
         LDRNE r2,ScreenMax
         LDREQ r2,ScreenPartial
         LDR r1,ScreenStart
-        MOVEQ r2,r2,LSR#1
+        //  MOVEQ r2,r2,LSR#1
         ADD r12, r1, r2
         MOV r2,r0
         // a1 has start, a2 is the max mem location
@@ -174,12 +177,12 @@ FillEdgeLists:
         ADD   r0,r0,#4
         LDMFD r0,{v3_X,v3_Y}
 
-        CMP   v1_X,#320
-        CMPLO v2_X,#320
-        CMPLO v3_X,#320
-        CMPLO v1_Y,#255
-        CMPLO v2_Y,#255
-        CMPLO v3_Y,#255
+        CMP   v1_X,#ScreenWidth
+        CMPLO v2_X,#ScreenWidth
+        CMPLO v3_X,#ScreenWidth
+        CMPLO v1_Y,#ScreenHeightLimit
+        CMPLO v2_Y,#ScreenHeightLimit
+        CMPLO v3_Y,#ScreenHeightLimit
         BLO TrivialTriangleRoutine
 
 // ==========================================
@@ -188,14 +191,14 @@ FillEdgeLists:
 
 ClippedTriangleRoutine:
 
-        CMP   v1_Y, #255
-        CMPGE v2_Y, #255
-        CMPGE v3_Y, #255
+        CMP   v1_Y, #ScreenHeightLimit
+        CMPGE v2_Y, #ScreenHeightLimit
+        CMPGE v3_Y, #ScreenHeightLimit
         BGE   EdgeListEnd // All Y coords are off screen bottom
 
-        CMP   v1_X, #320
-        CMPGE v2_X, #320
-        CMPGE v3_X, #320
+        CMP   v1_X, #ScreenWidth
+        CMPGE v2_X, #ScreenWidth
+        CMPGE v3_X, #ScreenWidth
         BGE   EdgeListEnd // All X coords are off screen
 
         CMP   v1_Y, #0
@@ -314,8 +317,8 @@ TopGradientSafe:
         MLALT r5,r1_ShortGradient,r3,r5 // r5 += m * (+v1_Y)
         ADDGE r2_EdgeList,r2_EdgeList,v1_Y,LSL#2 // Add the Y coord to the list address
         // If y2 > ScreenHeightLimit, we need to trim the top part and reduce the y delta
-        CMP v2_Y,#255
-        SUBGE r7,v2_Y,#255        // r7 = positive y delta over ScreenHeightLimit
+        CMP v2_Y,#ScreenHeightLimit
+        SUBGE r7,v2_Y,#ScreenHeightLimit        // r7 = positive y delta over ScreenHeightLimit
         SUBGE r14,r14,r7                        // Reduce the y delta accordingly
 
 LFillEdgeLists__local_12_2:
@@ -375,8 +378,8 @@ BottomGradientSafe:
         MLALT r4,r0_LongGradient,r3,r4  // r4 += m * (+v1_Y)
         MLALT r5,r1_ShortGradient,r3,r5 // r5 += m * (+v1_Y)
         // If y3 > ScreenHeightLimit, we need to adjust the ending position
-        CMP   v3_Y,#255
-        SUBGE r7,v3_Y,#255        // r7 = positive y delta over 255
+        CMP   v3_Y,#ScreenHeightLimit
+        SUBGE r7,v3_Y,#ScreenHeightLimit        // r7 = positive y delta over ScreenHeightLimit
         SUBGE r14,r14,r7                        // Reduce the y delta accordingly
 
 LFillEdgeLists__local_14_2:
@@ -405,8 +408,8 @@ LFillEdgeLists__local_14_2:
 
         // CLIPPING
         // If y2 > ScreenHeightLimit, we need to adjust the ending position
-        CMP v3_Y,#255
-        MOVGE v3_Y,#255
+        CMP v3_Y,#ScreenHeightLimit
+        MOVGE v3_Y,#ScreenHeightLimit
         CMPGE v1_Y,v3_Y
         BGE EdgeListEnd
 
@@ -748,7 +751,7 @@ Continue:
         EOR r7, r7, r8 //
 
         .ifdef PAL_256
-        ADD r11,r11,#320        // Add 320 to the screen offset
+        ADD r11,r11,#ScreenWidth        // Add 320 to the screen offset
         SUBS r14,r14,#1         // Decrement the y counter
         .else
         ADD r11, r11, #160 // Changed from 320 to 160 bytes per scanline
@@ -773,7 +776,7 @@ ScreenStart:
 
         .ifdef PAL_256
 ScreenMax:
-                .word 0x014000
+                .word 0x14000
 ScreenPartial:
                 .word 0xfa00   // 0 to 200 in Mode 13
         .else
@@ -883,8 +886,8 @@ LProjectVertex__local_40_4:
         LDMFD sp!,{r4-r6}  // Restore some registers
 
 NoDivide:
-        ADD r1,r1,#160
-        ADD r2,r2,#128
+        ADD r1,r1,#HalfScreenWidth  // Add the screen center offset to X
+        ADD r2,r2,#HalfScreenHeight  // Add the screen center offset to Y
 
         STMFD r0!,{r1-r3}  // Store X, Y, Z back to the vertex
         MOV pc,lr
