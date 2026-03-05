@@ -49,9 +49,9 @@ void SetupRender(int allocating)
 
         for (i = 0; i < NUM_STARS; ++i)
         {
-            starfield[i].x = (rand32(0xFFFF));
-            starfield[i].y = (rand32(0xFFFF));
-            starfield[i].z = (rand32(0xFFFF));
+            starfield[i].x = (rand32(0x7FFF));
+            starfield[i].y = (rand32(0x7FFF));
+            starfield[i].z = (rand32(0x7FFF));
         }
     }
     else
@@ -123,15 +123,15 @@ void RenderStarfield(MAT43 *viewMat, V3D eyePos, unsigned char *ptr)
 
     vPtr = &starfield[0];
 
-    eyePos.x >>= 8;
-    eyePos.y >>= 8;
-    eyePos.z >>= 8;
+    eyePos.x >>= 7;
+    eyePos.y >>= 7;
+    eyePos.z >>= 7;
 
     for (i = 0; i < NUM_STARS; ++i)
     {
-        tmp2.x = ((vPtr->x - eyePos.x) & 0xFFFF) - 0x8000;
-        tmp2.y = ((vPtr->y - eyePos.y) & 0xFFFF) - 0x8000;
-        tmp2.z = ((vPtr->z - eyePos.z) & 0xFFFF) - 0x8000;       
+        tmp2.x = ((vPtr->x - eyePos.x) & 0x7FFF) - 0x4000;
+        tmp2.y = ((vPtr->y - eyePos.y) & 0x7FFF) - 0x4000;
+        tmp2.z = ((vPtr->z - eyePos.z) & 0x7FFF) - 0x4000;       
         vPtr++;
 
         MultV3DMat_NoTranslate(&tmp2, &tmp, viewMat);
@@ -147,7 +147,7 @@ void RenderStarfield(MAT43 *viewMat, V3D eyePos, unsigned char *ptr)
     }
 }
 
-void RenderModel(MAT43 *viewMat, Mesh *mesh, int delta)
+void RenderModel(MAT43 *viewMat, Mesh *mesh)
 {
     MAT43 modelMat, modelViewMat;
     V3D _verts[4], tmpVec;
@@ -157,10 +157,10 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh, int delta)
     // Build local model matrix from mesh eulers and position
     EulerToMat(&modelMat, mesh->eulers.x, mesh->eulers.y, mesh->eulers.z);
 
-    // Advance mesh along its forward vector (3rd column of rotation matrix)
-    mesh->position.x -= fixmult(modelMat.m13, mesh->speed * delta);
-    mesh->position.y -= fixmult(modelMat.m23, mesh->speed * delta);
-    mesh->position.z -= fixmult(modelMat.m33, mesh->speed * delta);
+    // Cache the forward vector (3rd column) for position update after rendering
+    mesh->forward.x = modelMat.m13;
+    mesh->forward.y = modelMat.m23;
+    mesh->forward.z = modelMat.m33;
 
     modelMat.tx = mesh->position.x;
     modelMat.ty = mesh->position.y;

@@ -23,6 +23,8 @@ extern void FillEdgeLists(int triList, int color);
 extern void ProjectVertex(int vertexPtr);
 extern int GetMonotonicTime(void);
 
+extern int ScreenStart;
+
 // SWI access
 _kernel_oserror *err;
 _kernel_swi_regs rin, rout;
@@ -35,7 +37,8 @@ char *gBaseDirectoryPath = NULL;
 int main(int argc, char *argv[])
 {
     int i = 0, j = 0, swi_data[10], isRunning = 1;
-    int rollRate = 0, pitchRate = 0, delta = 0, lastTime = 0;
+    int rollRate = 0, pitchRate = 0, delta = 0;
+    int playerSpeed = 20000;
     V3D eyePos;
     V3D tmp, tmp2;
     V3D camRight, camUp, camForward;
@@ -98,6 +101,8 @@ int main(int argc, char *argv[])
         ClearScreen(0, 1);                          // Clear the new draw buffer
     }
 
+    ScreenStart = swi_data[3]; // Save the initial screen start address for the ASM code to use
+
     eyePos.x = 100 << 16;
     eyePos.y = 0;
     eyePos.z = 0;
@@ -137,14 +142,9 @@ int main(int argc, char *argv[])
 
     if (err == NULL)
     {
-        delta = 0;
-        lastTime = GetMonotonicTime();
+        delta = 1;
         while (isRunning)
-        {
-            err = _kernel_swi(OS_Mouse, &rin, &rout); // Get the mouse position
-            rollRate = clamp((mouseX - rout.r[0]) >> 7, -32, 32);
-            pitchRate = clamp((mouseY - rout.r[1]) >> 7, -32, 32);
-
+        {            
             // Apply roll: small-angle Minsky circle approximation.
             // cos(a) ~= 1 dropped; update camUp first, reuse it for camRight
             // (Minsky trick: using the intermediate value improves rotational stability).
@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
             // Re-orthogonalize periodically (Gram-Schmidt, forward is primary axis).
             // Minsky rotation is self-stabilizing so every-frame correction is unnecessary;
             // amortize the cost of two floating-point Normalize calls across 64 frames.
-            if ((j % 256) == 0)
+            if ((j % 16) == 0)
             {
                 fix d;
                 Normalize(&camForward);
@@ -185,9 +185,24 @@ int main(int argc, char *argv[])
                 Normalize(&camRight);
                 camUp = CrossProductV3D(&camForward, &camRight);
 
+            }
+
+            if (j % 1024 == 0)
+            {
                 g_Mesh.rollPerFrame = rand() % 5 - 2;
                 g_Mesh.pitchPerFrame = rand() % 5 - 2;
             }
+
+            eyePos.x += fixmult(camForward.x, playerSpeed * delta);
+            eyePos.y += fixmult(camForward.y, playerSpeed * delta);
+            eyePos.z += fixmult(camForward.z, playerSpeed * delta);
+
+            // Advance mesh along its cached forward vector
+            g_Mesh.position.x -= fixmult(g_Mesh.forward.x, g_Mesh.speed * delta);
+            g_Mesh.position.y -= fixmult(g_Mesh.forward.y, g_Mesh.speed * delta);
+            g_Mesh.position.z -= fixmult(g_Mesh.forward.z, g_Mesh.speed * delta);
+            g_Mesh.eulers.x += g_Mesh.pitchPerFrame * delta;
+            g_Mesh.eulers.z += g_Mesh.rollPerFrame * delta;
 
             if (KeyPress(KEY_ESCAPE)) // Escape
                 isRunning = 0;
@@ -229,12 +244,6 @@ int main(int argc, char *argv[])
             //     eyePos.z -= camForward.z >> 1;
             // }
 
-            SwitchScreenBank();             // Swap draw buffer with display buffer
-            rin.r[0] = (int)(&swi_data[0]); // Get the new screen start address
-            rin.r[1] = (int)(&swi_data[3]); // Results
-            err = _kernel_swi(OS_ReadVduVariables, &rin, &rout);
-            UpdateMemAddress(swi_data[3], swi_data[4]); // Pass these to the ASM side
-
             // Build view matrix from camera orientation vectors
             mat.m11 = camRight.x;
             mat.m12 = camRight.y;
@@ -249,35 +258,64 @@ int main(int argc, char *argv[])
             mat.ty = -DotProduct(&camUp, &eyePos);
             mat.tz = -DotProduct(&camForward, &eyePos);
 
-            ClearScreen(0x0E0E0E0E, 0); // Clear the new draw buffer
+            ClearScreen(0x0, 0); // Clear the new draw buffer
 
             int quantEyeX = eyePos.x >> 8;
             int quantEyeY = eyePos.y >> 8;
             int quantEyeZ = eyePos.z >> 8;
 
-            ptr = (unsigned char *)(swi_data[3]);
-
+            ptr = (unsigned char *)(ScreenStart);
+                
             RenderStarfield(&mat, eyePos, ptr);
-            RenderModel(&mat, &g_Mesh, delta);
+            RenderModel(&mat, &g_Mesh);
 
-            // printf("DISt     :  %d", dist);
-            delta = max(GetMonotonicTime() - lastTime, 1);
-            lastTime = GetMonotonicTime();
-
-            g_Mesh.eulers.x += g_Mesh.pitchPerFrame * delta;
-            g_Mesh.eulers.z += g_Mesh.rollPerFrame * delta;
-
-            if (!(rout.r[2] & 1)) // Right mouse button not pressed - Thrust forward
-            {
-                eyePos.x += fixmult(camForward.x, 20000) * delta;
-                eyePos.y += fixmult(camForward.y, 20000) * delta;
-                eyePos.z += fixmult(camForward.z, 20000) * delta;
-            }
+            // Get the vscan counter and see how many frames have passed since the last reset (max 255).
+            rin.r[0] = 176;
+            rin.r[1] = 0;
+            rin.r[2] = 0xFF;
+            err = _kernel_swi(OS_Byte, &rin, &rin);
 
             ++j;
+
+            err = _kernel_swi(OS_Mouse, &rin, &rin); // Get the mouse position
+            rollRate = clamp((mouseX - rin.r[0]) >> 7, -32, 32) * delta;
+            pitchRate = clamp((mouseY - rin.r[1]) >> 7, -32, 32) * delta;
+
+            if ((rin.r[2] & 1)) // Right mouse button pressed - Thrust backward
+            {
+                playerSpeed = max((playerSpeed - 100 * delta), 0);
+                for (i = 0; i < 320; ++i)
+                {
+                    ptr[i + 64000] = (i < (playerSpeed >> 6)) ? 57 : 0;//colors[15 - min(((quantEyeZ + (i << 8)) >> 12), 15)];
+                }
+            }
+            else if ((rin.r[2] & 4)) // Left mouse button pressed - Thrust forward
+            {
+                playerSpeed = min((playerSpeed + 100 * delta), 20000);
+                for (i = 0; i < playerSpeed >> 6; ++i)
+                {
+                    ptr[i + 64000] = 57;//colors[15 - min(((quantEyeZ + (i << 8)) >> 12), 15)];
+                }
+            }
+
             // rin.r[0] = 30;
             // err = _kernel_swi(OS_WriteC, &rin, &rout);
-            // printf("\nMONOTONIC TIME : %d", GetMonotonicTime());
+            // printf("\n FRAME DELAY: %d", delta);
+
+            SwitchScreenBank();             // Swap draw buffer with display buffer
+            rin.r[0] = (int)(&swi_data[0]); // Get the new screen start address
+            rin.r[1] = (int)(&swi_data[3]); // Results
+            err = _kernel_swi(OS_ReadVduVariables, &rin, &rout);
+            UpdateMemAddress(swi_data[3], swi_data[4]); // Pass these to the ASM side
+            ScreenStart = swi_data[3]; // Update screen start for C code as well
+
+            // Reset the OS vscan counter
+            rin.r[0] = 176;
+            rin.r[1] = 0xFF;
+            rin.r[2] = 0;
+            err = _kernel_swi(OS_Byte, &rin, &rin);
+            // printf("DISt     :  %d", dist);
+            delta = 0xFF - rin.r[1];
 
 #ifdef TIMING_LOG
             {

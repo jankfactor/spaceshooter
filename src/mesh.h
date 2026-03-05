@@ -8,6 +8,7 @@ typedef struct Mesh
 {
     V3D position;
     V3D eulers;
+    V3D forward;  // cached forward vector (3rd column of model rotation matrix)
     fix speed;
     fix rollPerFrame;
     fix pitchPerFrame;
