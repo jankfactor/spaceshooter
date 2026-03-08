@@ -147,7 +147,7 @@ void RenderStarfield(MAT43 *viewMat, V3D eyePos, unsigned char *ptr)
     }
 }
 
-void RenderModel(MAT43 *viewMat, Mesh *mesh)
+void RenderModel(MAT43 *viewMat, Mesh *mesh, V3D *outModelPos)
 {
     MAT43 modelMat, modelViewMat;
     V3D _verts[4], tmpVec;
@@ -168,6 +168,14 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh)
 
     // Combine model and view into a single matrix (column-vector: viewMat * modelMat)
     MultMatMat(&modelViewMat, viewMat, &modelMat);
+
+    // Get the position of the model in view space for the radar
+    if (outModelPos)
+    {
+        outModelPos->x = modelViewMat.tx;
+        outModelPos->y = modelViewMat.ty;
+        outModelPos->z = modelViewMat.tz;
+    }
 
     // Transform vertices: object space -> view space in one step
     for (i = 0; i < cvector_size(mesh->verts); ++i)

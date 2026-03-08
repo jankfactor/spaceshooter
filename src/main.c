@@ -260,7 +260,7 @@ int main(int argc, char *argv[])
             mat.ty = -DotProduct(&camUp, &eyePos);
             mat.tz = -DotProduct(&camForward, &eyePos);
 
-            ClearScreen(0x0, 0); // Clear the new draw buffer
+            ClearScreen(0x0, 1); // Clear the new draw buffer
 
             int quantEyeX = eyePos.x >> 8;
             int quantEyeY = eyePos.y >> 8;
@@ -269,7 +269,41 @@ int main(int argc, char *argv[])
             ptr = (unsigned char *)(ScreenStart);
                 
             RenderStarfield(&mat, eyePos, ptr);
-            RenderModel(&mat, &g_Mesh);
+            RenderModel(&mat, &g_Mesh, &tmp);
+
+            // Draw the enemy ship's position on the radar (top-down view)
+            {
+                for (i = 160 - 40; i < 160 + 40; ++i)
+                {
+                    ptr[(228) * SCREEN_W + i] = 38;
+                }
+
+                for (i = 228 - 10; i < 228 + 10; ++i)
+                {
+                    ptr[i * SCREEN_W + 160] = 38;
+                }
+
+
+                int radarX = 160 + (tmp.x >> 17);
+                int radarZ = 228 - (tmp.z >> 19);
+                int radarY = radarZ - (tmp.y >> 19);
+                if (radarY < radarZ) {
+                    for (i = radarY; i <= radarZ; ++i) {
+                        if (radarX > 0 && radarX < SCREEN_W && i >= 0 && i < 256)
+                        {
+                            ptr[i * SCREEN_W + radarX] = 20;
+                        }
+                    }
+                }
+                else {
+                    for (i = radarZ; i <= radarY; ++i) {
+                        if (radarX > 0 && radarX < SCREEN_W && i >= 0 && i < 256)
+                        {
+                            ptr[i * SCREEN_W + radarX] = 20;
+                        }
+                    }
+                }
+            }
 
             // Get the vscan counter and see how many frames have passed since the last reset (max 255).
             rin.r[0] = 176;
