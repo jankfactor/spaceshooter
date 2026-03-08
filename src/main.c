@@ -34,10 +34,12 @@ char *gBaseDirectoryPath = NULL;
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
+#define QTM_PlaySample 0x47E54
+
 int main(int argc, char *argv[])
 {
     int i = 0, j = 0, swi_data[10], isRunning = 1;
-    int rollRate = 0, pitchRate = 0, delta = 0;
+    int rollRate = 0, pitchRate = 0, delta = 0, fireRate = 0;
     int playerSpeed = 20000;
     V3D eyePos;
     V3D tmp, tmp2;
@@ -297,10 +299,39 @@ int main(int argc, char *argv[])
                     ptr[i + 64000] = 57;//colors[15 - min(((quantEyeZ + (i << 8)) >> 12), 15)];
                 }
             }
+            else if ((rin.r[2] & 2) && !fireRate) // Middle mouse button pressed - Fire lasers
+            {
+                rin.r[0] = 3; // Any channel
+                rin.r[1] = 1;
+                rin.r[2] = 32 + rand()%4; // C-2
+                rin.r[3] = 64; // Max volume
+                err = _kernel_swi(QTM_PlaySample, &rin, &rin); // Get the mouse position
 
-            // rin.r[0] = 30;
-            // err = _kernel_swi(OS_WriteC, &rin, &rout);
-            // printf("\n FRAME DELAY: %d", delta);
+                if (ptr[32160]) {
+                    rin.r[0] = 4; // Any channel
+                    rin.r[1] = 2;
+                    rin.r[2] = 32 + rand()%4; // C-2
+                    rin.r[3] = 64; // Max volume
+                    err = _kernel_swi(QTM_PlaySample, &rin, &rin); // Get the mouse position
+                }
+
+                static const V3D lasersLeft[3] = {
+                    { 164, 100, 0 },
+                    { 0, 200, 0 },
+                    { 50, 200, 0 },
+                };
+
+                FillEdgeLists((unsigned int)(&lasersLeft[0]), (200 + rand()%55) << 7);
+
+                static const V3D lasersRight[3] = {
+                    { 158, 100, 0 },
+                    { 320, 200, 0 },
+                    { 320 - 50, 200, 0 },
+                };
+                
+                FillEdgeLists((unsigned int)(&lasersRight[0]), (200 + rand()%55) << 7);
+                fireRate = 30; // Set fire rate cooldown
+            }
 
             SwitchScreenBank();             // Swap draw buffer with display buffer
             rin.r[0] = (int)(&swi_data[0]); // Get the new screen start address
@@ -316,6 +347,8 @@ int main(int argc, char *argv[])
             err = _kernel_swi(OS_Byte, &rin, &rin);
             // printf("DISt     :  %d", dist);
             delta = 0xFF - rin.r[1];
+            if (fireRate)
+                fireRate = max(fireRate - delta, 0);
 
 #ifdef TIMING_LOG
             {
