@@ -39,16 +39,19 @@ char *gBaseDirectoryPath = NULL;
 
 int main(int argc, char *argv[])
 {
+	(void)argc;
+	(void)argv;
+
 	int i = 0, j = 0, swi_data[10], isRunning = 1;
 	int rollRate = 0, pitchRate = 0, delta = 0, fireRate = 0;
 	int playerSpeed = 20000;
 	V3D eyePos;
-	V3D tmp, tmp2;
+	V3D tmp;
 	V3D camRight, camUp, camForward;
 	MAT43 mat;
 	int mouseX = 0, mouseY = 0;
 	unsigned char block[9];
-	unsigned char *ptr, *ptr2;
+	unsigned char *ptr = NULL;
 	int flash = 0;
 
 	srand((unsigned int)time(NULL));
@@ -59,7 +62,8 @@ int main(int argc, char *argv[])
 
 	for (i = 0; i < 1024; ++i)
 	{
-		g_SineTable[i] = float2fix(sinf((i * M_PI * 2.f) / 1024.f));
+		const float angle = ((float)i * 6.28318530718f) / 1024.0f;
+		g_SineTable[i] = float2fix(sinf(angle));
 		g_oneOver[i] = (i == 0) ? float2fix(1.f) : float2fix(1.f / i);
 	}
 
@@ -106,6 +110,7 @@ int main(int argc, char *argv[])
 	}
 
 	ScreenStart = swi_data[3]; // Save the initial screen start address for the ASM code to use
+	ptr = (unsigned char *)(ScreenStart);
 
 	eyePos.x = 100 << 16;
 	eyePos.y = 0;
@@ -233,19 +238,27 @@ int main(int argc, char *argv[])
 				eyePos.y -= camUp.y >> 1;
 				eyePos.z -= camUp.z >> 1;
 			}
+			else if (KeyPress(KEY_SPACE) && !fireRate) // Space - Fire
+			{
+				rin.r[0] = 3; // Any channel
+				rin.r[1] = 1;
+				rin.r[2] = 32 + rand() % 4;					   // C-2
+				rin.r[3] = 64;								   // Max volume
+				err = _kernel_swi(QTM_PlaySample, &rin, &rin); // Get the mouse position
 
-			// if (rout.r[2] & 4) // Left mouse button - Thrust forward
-			// {
-			//     eyePos.x += camForward.x << 1;
-			//     eyePos.y += camForward.y << 1;
-			//     eyePos.z += camForward.z << 1;
-			// }
-			// else if (rout.r[2] & 1) // Right mouse button - Thrust backward
-			// {
-			//     eyePos.x -= camForward.x >> 1;
-			//     eyePos.y -= camForward.y >> 1;
-			//     eyePos.z -= camForward.z >> 1;
-			// }
+				if (ptr[32160])
+				{
+					flash = 8;
+
+					rin.r[0] = 4; // Any channel
+					rin.r[1] = 2;
+					rin.r[2] = 32 + rand() % 4;					   // C-2
+					rin.r[3] = 64;								   // Max volume
+					err = _kernel_swi(QTM_PlaySample, &rin, &rin); // Get the mouse position
+				}
+
+				fireRate = 30; // Set fire rate cooldown
+			}
 
 			// Build view matrix from camera orientation vectors
 			mat.m11 = camRight.x;
@@ -262,15 +275,30 @@ int main(int argc, char *argv[])
 			mat.tz = -DotProduct(&camForward, &eyePos);
 
 			ClearScreen(0x0, 1); // Clear the new draw buffer
-
-			int quantEyeX = eyePos.x >> 8;
-			int quantEyeY = eyePos.y >> 8;
-			int quantEyeZ = eyePos.z >> 8;
-
 			ptr = (unsigned char *)(ScreenStart);
 
 			RenderStarfield(&mat, eyePos, ptr);
 			RenderModel(&mat, &g_Mesh, &tmp, flash);
+
+			if (fireRate == 30)
+			{
+				static const V3D lasersLeft[3] = {
+					{164, 100, 0},
+					{0, 200, 0},
+					{50, 200, 0},
+				};
+
+				FillEdgeLists((unsigned int)(&lasersLeft[0]), (200 + rand() % 55) << 7);
+
+				static const V3D lasersRight[3] = {
+					{158, 100, 0},
+					{320, 200, 0},
+					{320 - 50, 200, 0},
+				};
+
+				FillEdgeLists((unsigned int)(&lasersRight[0]), (200 + rand() % 55) << 7);
+			}
+
 			flash = flash > 0 ? flash - 1 : 0;
 
 			BlitRadar(ScreenStart);
@@ -329,42 +357,6 @@ int main(int argc, char *argv[])
 				{
 					ptr[i + 64000] = 57; // colors[15 - min(((quantEyeZ + (i << 8)) >> 12), 15)];
 				}
-			}
-			else if ((rin.r[2] & 2) && !fireRate) // Middle mouse button pressed - Fire lasers
-			{
-				rin.r[0] = 3; // Any channel
-				rin.r[1] = 1;
-				rin.r[2] = 32 + rand() % 4;					   // C-2
-				rin.r[3] = 64;								   // Max volume
-				err = _kernel_swi(QTM_PlaySample, &rin, &rin); // Get the mouse position
-
-				if (ptr[32160])
-				{
-					flash = 8;
-
-					rin.r[0] = 4; // Any channel
-					rin.r[1] = 2;
-					rin.r[2] = 32 + rand() % 4;					   // C-2
-					rin.r[3] = 64;								   // Max volume
-					err = _kernel_swi(QTM_PlaySample, &rin, &rin); // Get the mouse position
-				}
-
-				static const V3D lasersLeft[3] = {
-					{164, 100, 0},
-					{0, 200, 0},
-					{50, 200, 0},
-				};
-
-				FillEdgeLists((unsigned int)(&lasersLeft[0]), (200 + rand() % 55) << 7);
-
-				static const V3D lasersRight[3] = {
-					{158, 100, 0},
-					{320, 200, 0},
-					{320 - 50, 200, 0},
-				};
-
-				FillEdgeLists((unsigned int)(&lasersRight[0]), (200 + rand() % 55) << 7);
-				fireRate = 30; // Set fire rate cooldown
 			}
 
 			SwitchScreenBank();				// Swap draw buffer with display buffer

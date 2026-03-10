@@ -293,9 +293,9 @@ int LoadOBJ(char *filename)
     printf("Loading: %d vertices, %d normals, %d faces\r\n", vert_count, normal_count, face_count);
 
     // Reserve space for all arrays
-    cvector_reserve(g_Mesh.verts, vert_count);
-    cvector_reserve(g_Mesh.faces, face_count);
-    cvector_reserve(imported_normals, normal_count);
+    cvector_reserve(g_Mesh.verts, (size_t)vert_count);
+    cvector_reserve(g_Mesh.faces, (size_t)face_count);
+    cvector_reserve(imported_normals, (size_t)normal_count);
 
     // Read vertices (already in fixed-point from conversion script)
     for (i = 0; i < vert_count; ++i)

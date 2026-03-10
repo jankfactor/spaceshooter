@@ -153,6 +153,7 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh, V3D *outModelPos, int flash)
     V3D _verts[4], tmpVec;
     V3D *vPtr;
     int i;
+    size_t vec_i;
 
     // Build local model matrix from mesh eulers and position
     EulerToMat(&modelMat, mesh->eulers.x, mesh->eulers.y, mesh->eulers.z);
@@ -178,20 +179,20 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh, V3D *outModelPos, int flash)
     }
 
     // Transform vertices: object space -> view space in one step
-    for (i = 0; i < cvector_size(mesh->verts); ++i)
+    for (vec_i = 0; vec_i < cvector_size(mesh->verts); ++vec_i)
     {
-        vPtr = &mesh->verts_transformed[i];
-        MultV3DMat(&mesh->verts[i], vPtr, &modelViewMat);
+        vPtr = &mesh->verts_transformed[vec_i];
+        MultV3DMat(&mesh->verts[vec_i], vPtr, &modelViewMat);
         ProjectVertex((int)(vPtr)); // Perspective projection (skips if Z <= 0)
     }
 
     // Backface cull and insert visible faces into the depth-sorted render queue
-    for (i = 0; i < cvector_size(mesh->faces); ++i)
+    for (vec_i = 0; vec_i < cvector_size(mesh->faces); ++vec_i)
     {
-        mesh->faces[i].next = NULL;
-        _verts[0] = mesh->verts_transformed[mesh->faces[i].a];
-        _verts[1] = mesh->verts_transformed[mesh->faces[i].b];
-        _verts[2] = mesh->verts_transformed[mesh->faces[i].c];
+        mesh->faces[vec_i].next = NULL;
+        _verts[0] = mesh->verts_transformed[mesh->faces[vec_i].a];
+        _verts[1] = mesh->verts_transformed[mesh->faces[vec_i].b];
+        _verts[2] = mesh->verts_transformed[mesh->faces[vec_i].c];
 
         // Skip faces with any vertex behind the camera (not projected)
         if (_verts[0].z <= 0 || _verts[1].z <= 0 || _verts[2].z <= 0)
@@ -202,16 +203,16 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh, V3D *outModelPos, int flash)
             // Rotate face normal by model rotation for correct lighting.
             // Use fixmult (not fixmult_lessThanOne) to avoid 32-bit overflow
             // when rotation matrix entries or normal components reach 1.0.
-            const V3D *n = &mesh->faces[i].normal;
+            const V3D *n = &mesh->faces[vec_i].normal;
             tmpVec.x = fixmult(n->x, modelMat.m11) + fixmult(n->y, modelMat.m12) + fixmult(n->z, modelMat.m13);
             tmpVec.y = fixmult(n->x, modelMat.m21) + fixmult(n->y, modelMat.m22) + fixmult(n->z, modelMat.m23);
             tmpVec.z = fixmult(n->x, modelMat.m31) + fixmult(n->y, modelMat.m32) + fixmult(n->z, modelMat.m33);
-            mesh->faces[i].d = (mesh->faces[i].d & 0xFFFFFF80) + clamp((tmpVec.z >> 10), 0, 63);
-            mesh->faces[i].depth = min((_verts[0].z + _verts[1].z + _verts[2].z) >> 8, MAXDEPTH - 1);
+            mesh->faces[vec_i].d = (mesh->faces[vec_i].d & 0xFFFFFF80) + clamp((tmpVec.z >> 10), 0, 63);
+            mesh->faces[vec_i].depth = min((_verts[0].z + _verts[1].z + _verts[2].z) >> 8, MAXDEPTH - 1);
 
             // Push the previous triangle (if any) onto the stack for this depth.
-            mesh->faces[i].next = g_RenderQueue[mesh->faces[i].depth];
-            g_RenderQueue[mesh->faces[i].depth] = &mesh->faces[i];
+            mesh->faces[vec_i].next = g_RenderQueue[mesh->faces[vec_i].depth];
+            g_RenderQueue[mesh->faces[vec_i].depth] = &mesh->faces[vec_i];
         }
     }
 
