@@ -271,7 +271,7 @@ int main(int argc, char *argv[])
 
 			RenderStarfield(&mat, eyePos, ptr);
 			RenderModel(&mat, &g_Mesh, &tmp, flash);
-			flash = 0;
+			flash = flash > 0 ? flash - 1 : 0;
 
 			BlitRadar(ScreenStart);
 
@@ -340,7 +340,7 @@ int main(int argc, char *argv[])
 
 				if (ptr[32160])
 				{
-					flash = 1;
+					flash = 8;
 
 					rin.r[0] = 4; // Any channel
 					rin.r[1] = 2;

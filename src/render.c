@@ -225,7 +225,7 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh, V3D *outModelPos, int flash)
             _verts[1] = mesh->verts_transformed[queuePtr->b];
             _verts[2] = mesh->verts_transformed[queuePtr->c];
 
-            FillEdgeLists((unsigned int)(&_verts[0]), flash ? 63 : queuePtr->d);
+            FillEdgeLists((unsigned int)(&_verts[0]), flash ? ((flash & 1) ? 63 : 0) : queuePtr->d);
 
             g_RenderQueue[i] = (TRI *)queuePtr->next; // Next face
         }
