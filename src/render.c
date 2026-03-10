@@ -131,7 +131,7 @@ void RenderStarfield(MAT43 *viewMat, V3D eyePos, unsigned char *ptr)
     {
         tmp2.x = ((vPtr->x - eyePos.x) & 0x7FFF) - 0x4000;
         tmp2.y = ((vPtr->y - eyePos.y) & 0x7FFF) - 0x4000;
-        tmp2.z = ((vPtr->z - eyePos.z) & 0x7FFF) - 0x4000;       
+        tmp2.z = ((vPtr->z - eyePos.z) & 0x7FFF) - 0x4000;
         vPtr++;
 
         MultV3DMat_NoTranslate(&tmp2, &tmp, viewMat);
@@ -143,11 +143,11 @@ void RenderStarfield(MAT43 *viewMat, V3D eyePos, unsigned char *ptr)
         if (tmp.x < 0 || tmp.x >= SCREEN_W || tmp.y < 0 || tmp.y >= SCREEN_H)
             continue;
 
-        *(ptr + (tmp.y * SCREEN_W) + tmp.x) = 242;//colors[15 - min(tmp.z >> 12, 15)];
+        *(ptr + (tmp.y * SCREEN_W) + tmp.x) = 242; // colors[15 - min(tmp.z >> 12, 15)];
     }
 }
 
-void RenderModel(MAT43 *viewMat, Mesh *mesh, V3D *outModelPos)
+void RenderModel(MAT43 *viewMat, Mesh *mesh, V3D *outModelPos, int flash)
 {
     MAT43 modelMat, modelViewMat;
     V3D _verts[4], tmpVec;
@@ -206,7 +206,6 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh, V3D *outModelPos)
             tmpVec.x = fixmult(n->x, modelMat.m11) + fixmult(n->y, modelMat.m12) + fixmult(n->z, modelMat.m13);
             tmpVec.y = fixmult(n->x, modelMat.m21) + fixmult(n->y, modelMat.m22) + fixmult(n->z, modelMat.m23);
             tmpVec.z = fixmult(n->x, modelMat.m31) + fixmult(n->y, modelMat.m32) + fixmult(n->z, modelMat.m33);
-
             mesh->faces[i].d = (mesh->faces[i].d & 0xFFFFFF80) + clamp((tmpVec.z >> 10), 0, 63);
             mesh->faces[i].depth = min((_verts[0].z + _verts[1].z + _verts[2].z) >> 8, MAXDEPTH - 1);
 
@@ -226,7 +225,7 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh, V3D *outModelPos)
             _verts[1] = mesh->verts_transformed[queuePtr->b];
             _verts[2] = mesh->verts_transformed[queuePtr->c];
 
-            FillEdgeLists((unsigned int)(&_verts[0]), queuePtr->d);
+            FillEdgeLists((unsigned int)(&_verts[0]), flash ? 63 : queuePtr->d);
 
             g_RenderQueue[i] = (TRI *)queuePtr->next; // Next face
         }
