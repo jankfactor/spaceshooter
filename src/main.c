@@ -14,7 +14,6 @@
 
 // ASM Routines
 extern void VDUSetup(void);
-extern void UpdateMemAddress(int screenStart, int screenMax);
 extern void ReserveScreenBanks(void);
 extern void SwitchScreenBank(void);
 extern void ClearScreen(int color, int fullclear);
@@ -22,7 +21,8 @@ extern int KeyPress(int keyCode);
 extern void FillEdgeLists(int triList, int color);
 extern void ProjectVertex(int vertexPtr);
 extern int GetMonotonicTime(void);
-extern void BlitRadar(int screenStart);
+extern void BlitRadar(void);
+extern void BlitLogo(void);
 
 extern int ScreenStart;
 
@@ -109,10 +109,9 @@ int main(int argc, char *argv[])
 		ClearScreen(0, 1);							// Clear the new draw buffer
 	}
 
-	ScreenStart = swi_data[3]; // Save the initial screen start address for the ASM code to use
 	ptr = (unsigned char *)(ScreenStart);
 
-	eyePos.x = 100 << 16;
+	eyePos.x = 20 << 16;
 	eyePos.y = 0;
 	eyePos.z = 0;
 
@@ -144,11 +143,46 @@ int main(int argc, char *argv[])
 	rin.r[1] = (int)(&block[0]);
 	err = _kernel_swi(OS_Word, &rin, &rout);
 
+	if (err == NULL)
+	{
+		delta = 1;
+
+		// Build view matrix from camera orientation vectors
+		mat.m11 = camRight.x;
+		mat.m12 = camRight.y;
+		mat.m13 = camRight.z;
+		mat.m21 = camUp.x;
+		mat.m22 = camUp.y;
+		mat.m23 = camUp.z;
+		mat.m31 = camForward.x;
+		mat.m32 = camForward.y;
+		mat.m33 = camForward.z;
+		mat.tx = -DotProduct(&camRight, &eyePos);
+		mat.ty = -DotProduct(&camUp, &eyePos);
+		mat.tz = -DotProduct(&camForward, &eyePos);
+
+		while (!KeyPress(KEY_SPACE))
+		{
+			SwitchScreenBank();
+			rin.r[0] = (int)(&swi_data[0]); // Get the new screen start address
+			rin.r[1] = (int)(&swi_data[3]); // Results
+			err = _kernel_swi(OS_ReadVduVariables, &rin, &rout);
+			UpdateMemAddress(swi_data[3], swi_data[4]); // Pass these to the ASM side
+			ClearScreen(0x0, 1); // Clear the new draw buffer
+			BlitLogo();
+			RenderModel(&mat, &g_Mesh, &tmp, 0);
+
+			g_Mesh.eulers.x += 5;
+			g_Mesh.eulers.z += 5;
+		}
+	}
+
+	eyePos.x = 100 << 16;
+
 	// Get initial mouse position
 	err = _kernel_swi(OS_Mouse, &rin, &rout);
 	mouseX = rout.r[0];
 	mouseY = rout.r[1];
-
 	if (err == NULL)
 	{
 		delta = 1;
@@ -277,6 +311,7 @@ int main(int argc, char *argv[])
 			ClearScreen(0x0, 1); // Clear the new draw buffer
 			ptr = (unsigned char *)(ScreenStart);
 
+			// BlitLogo();
 			RenderStarfield(&mat, eyePos, ptr);
 			RenderModel(&mat, &g_Mesh, &tmp, flash);
 
@@ -301,7 +336,7 @@ int main(int argc, char *argv[])
 
 			flash = flash > 0 ? flash - 1 : 0;
 
-			BlitRadar(ScreenStart);
+			BlitRadar();
 
 			// Draw the enemy ship's position on the radar (top-down view)
 			{
@@ -364,7 +399,6 @@ int main(int argc, char *argv[])
 			rin.r[1] = (int)(&swi_data[3]); // Results
 			err = _kernel_swi(OS_ReadVduVariables, &rin, &rout);
 			UpdateMemAddress(swi_data[3], swi_data[4]); // Pass these to the ASM side
-			ScreenStart = swi_data[3];					// Update screen start for C code as well
 
 			// Reset the OS vscan counter
 			rin.r[0] = 176;
