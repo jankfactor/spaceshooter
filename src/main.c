@@ -35,7 +35,9 @@ char *gBaseDirectoryPath = NULL;
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
-#define QTM_PlaySample 0x47E54
+#define QTM_PlaySample 	0x47E54
+#define QTM_Start 		0x47E41
+#define QTM_Stop 		0x47E42
 
 int main(int argc, char *argv[])
 {
@@ -145,6 +147,8 @@ int main(int argc, char *argv[])
 
 	if (err == NULL)
 	{
+		err = _kernel_swi(QTM_Start, 0, 0); // Start the QTM sound engine
+
 		delta = 1;
 
 		// Build view matrix from camera orientation vectors
@@ -175,6 +179,8 @@ int main(int argc, char *argv[])
 			g_Mesh.eulers.x += 5;
 			g_Mesh.eulers.z += 5;
 		}
+
+		err = _kernel_swi(QTM_Stop, 0, 0); // Start the QTM sound engine
 	}
 
 	eyePos.x = 100 << 16;
