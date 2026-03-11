@@ -16,6 +16,7 @@
 extern void VDUSetup(void);
 extern void ReserveScreenBanks(void);
 extern void SwitchScreenBank(void);
+extern void UpdateMemAddress(int address);
 extern void ClearScreen(int color, int fullclear);
 extern int KeyPress(int keyCode);
 extern void FillEdgeLists(int triList, int color);
@@ -99,7 +100,7 @@ int main(int argc, char *argv[])
 	rin.r[0] = (int)(&swi_data[0]); // Start of query
 	rin.r[1] = (int)(&swi_data[3]); // Results
 	err = _kernel_swi(OS_ReadVduVariables, &rin, &rout);
-	UpdateMemAddress(swi_data[3], swi_data[4]);
+	UpdateMemAddress(swi_data[3]);
 
 	for (i = 0; i < 2; ++i)
 	{
@@ -107,7 +108,7 @@ int main(int argc, char *argv[])
 		rin.r[0] = (int)(&swi_data[0]); // Get the new screen start address
 		rin.r[1] = (int)(&swi_data[3]); // Results
 		err = _kernel_swi(OS_ReadVduVariables, &rin, &rout);
-		UpdateMemAddress(swi_data[3], swi_data[4]); // Pass these to the ASM side
+		UpdateMemAddress(swi_data[3]); // Pass these to the ASM side
 		ClearScreen(0, 1);							// Clear the new draw buffer
 	}
 
@@ -171,7 +172,7 @@ int main(int argc, char *argv[])
 			rin.r[0] = (int)(&swi_data[0]); // Get the new screen start address
 			rin.r[1] = (int)(&swi_data[3]); // Results
 			err = _kernel_swi(OS_ReadVduVariables, &rin, &rout);
-			UpdateMemAddress(swi_data[3], swi_data[4]); // Pass these to the ASM side
+			UpdateMemAddress(swi_data[3]); // Pass these to the ASM side
 			ClearScreen(0x0, 1); // Clear the new draw buffer
 			BlitLogo();
 			RenderModel(&mat, &g_Mesh, &tmp, 0);
@@ -404,7 +405,7 @@ int main(int argc, char *argv[])
 			rin.r[0] = (int)(&swi_data[0]); // Get the new screen start address
 			rin.r[1] = (int)(&swi_data[3]); // Results
 			err = _kernel_swi(OS_ReadVduVariables, &rin, &rout);
-			UpdateMemAddress(swi_data[3], swi_data[4]); // Pass these to the ASM side
+			UpdateMemAddress(swi_data[3]); // Pass these to the ASM side
 
 			// Reset the OS vscan counter
 			rin.r[0] = 176;
