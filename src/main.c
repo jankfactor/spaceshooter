@@ -147,7 +147,7 @@ int main(int argc, char *argv[])
 	rin.r[1] = (int)(&block[0]);
 	err = _kernel_swi(OS_Word, &rin, &rout);
 
-	if (0 && err == NULL)
+	if (err == NULL)
 	{
 		err = _kernel_swi(QTM_Start, 0, 0); // Start the QTM sound engine
 
