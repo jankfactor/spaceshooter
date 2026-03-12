@@ -24,6 +24,7 @@ extern void ProjectVertex(int vertexPtr);
 extern int GetMonotonicTime(void);
 extern void BlitRadar(void);
 extern void BlitLogo(void);
+extern void AddSignature(V3D *radarPos);
 
 extern int ScreenStart;
 
@@ -146,7 +147,7 @@ int main(int argc, char *argv[])
 	rin.r[1] = (int)(&block[0]);
 	err = _kernel_swi(OS_Word, &rin, &rout);
 
-	if (err == NULL)
+	if (0 && err == NULL)
 	{
 		err = _kernel_swi(QTM_Start, 0, 0); // Start the QTM sound engine
 
@@ -344,33 +345,7 @@ int main(int argc, char *argv[])
 			flash = flash > 0 ? flash - 1 : 0;
 
 			BlitRadar();
-
-			// Draw the enemy ship's position on the radar (top-down view)
-			{
-				int radarX = clamp(160 + (tmp.x >> 17), 128, 192);
-				int radarZ = clamp(216 - (tmp.z >> 19), 200, 232);
-				int radarY = radarZ - (tmp.y >> 19);
-				if (radarY <= radarZ)
-				{
-					for (i = radarY; i <= radarZ; ++i)
-					{
-						if (radarX > 0 && radarX < SCREEN_W && i >= 0 && i < 256)
-						{
-							ptr[i * SCREEN_W + radarX] = 20;
-						}
-					}
-				}
-				else
-				{
-					for (i = radarZ; i <= radarY; ++i)
-					{
-						if (radarX > 0 && radarX < SCREEN_W && i >= 0 && i < 256)
-						{
-							ptr[i * SCREEN_W + radarX] = 16;
-						}
-					}
-				}
-			}
+			AddSignature(&tmp);
 
 			// Get the vscan counter and see how many frames have passed since the last reset (max 255).
 			rin.r[0] = 176;

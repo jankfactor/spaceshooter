@@ -78,6 +78,74 @@ BlitLogo:
         LDMFD sp!, {r4-r11}
         MOV pc, lr
 
+        // r0 = pointer to V3D struct with radar position
+        .global AddSignature
+AddSignature:
+        STMFD sp!, {r4}
+
+        // Load the radar position from the V3D struct
+        LDMFD r0, {r1-r3} // Load x, y, z from the V3D struct
+        // X
+        MOV r1, r1, ASR #17
+        ADD r1, r1, #158 // - 2 as writing 4 bytes on quad line
+        CMP r1, #128
+        MOVLT r1, #128
+        CMP r1, #192
+        MOVGT r1, #192
+
+        // Z
+        MOV r3, r3, ASR #19
+        RSB r3, r3, #216
+
+        // Y (for now, just the delta, whether the enemy is above or below the player)
+        MOVS r2, r2, ASR #19
+
+        // If delta is -, then the stick will push below the Z marker
+        SUBLT r2, r3, r2 // r2 = r3 -(-r2) = r3 + r2
+        MOVLT r4, #16 // Darker, as they are underneath
+
+        // If delta is +, then r3 needs pulling up
+        SUBGE r3, r3, r2 // Pull r3 up
+        ADDGE r2, r3, r2 // And add r2 to it's new position
+        MOVGE r4, #20 // Lighter as they are above
+
+        ORR r4, r4, LSL #8
+        ORR r4, r4, LSL #16
+
+        // r3 < r2 at this point
+        // Limit the Y values so we don't go outside valid screen buffer lines
+        CMP r3, #0
+        MOVLT r3, #0
+        CMP r3, #255
+        MOVGT r3, #255
+        CMP r2, #0
+        MOVLT r2, #0
+        CMP r2, #255
+        MOVGT r2, #255
+
+        SUB r2, r2, r3
+
+        // Multiply the y coordinate by 320 to get the offset for the screen buffer
+        ADD r3, r3, r3, LSL #2
+        MOV r3, r3, LSL #6 // r2 = y * 320
+
+        LDR r0, =ScreenStart
+        LDR r0, [r0] // Load the actual screen start pointer
+        ADD r0, r0, r3 // Move to the correct line
+        ADD r0, r0, r1 // Move to the correct x position
+
+1:
+        STRB r4, [r0], #1 // Write the pixel color to the screen buffer
+        STRB r4, [r0], #1 // Write the pixel color to the screen buffer
+        STRB r4, [r0], #1 // Write the pixel color to the screen buffer
+        STRB r4, [r0], #317 // Write the pixel color to the screen buffer
+        SUBS r2, r2, #1
+        BGT 1b
+
+        LDMFD sp!, {r4}
+        MOV pc, lr
+        
+
 RadarScreenOffset:
         .word 64096
 
