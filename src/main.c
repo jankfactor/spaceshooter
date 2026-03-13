@@ -17,7 +17,7 @@ extern void VDUSetup(void);
 extern void ReserveScreenBanks(void);
 extern void SwitchScreenBank(void);
 extern void UpdateMemAddress(int address);
-extern void ClearScreen(int color, int fullclear);
+extern void ClearScreen(int color, int limit); // If limit is 0 then full screen clear
 extern int KeyPress(int keyCode);
 extern void FillEdgeLists(int triList, int color);
 extern void ProjectVertex(int vertexPtr);
@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
 		rin.r[1] = (int)(&swi_data[3]); // Results
 		err = _kernel_swi(OS_ReadVduVariables, &rin, &rout);
 		UpdateMemAddress(swi_data[3]); // Pass these to the ASM side
-		ClearScreen(0, 1);							// Clear the new draw buffer
+		ClearScreen(0, 0);							// Clear the new draw buffer
 	}
 
 	ptr = (unsigned char *)(ScreenStart);
@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
 			rin.r[1] = (int)(&swi_data[3]); // Results
 			err = _kernel_swi(OS_ReadVduVariables, &rin, &rout);
 			UpdateMemAddress(swi_data[3]); // Pass these to the ASM side
-			ClearScreen(0x0, 1); // Clear the new draw buffer
+			ClearScreen(0x0E0E0E0E, 320 * 160); // Clear the new draw buffer
 			BlitLogo();
 			RenderModel(&mat, &g_Mesh, &tmp, 0);
 
@@ -316,7 +316,7 @@ int main(int argc, char *argv[])
 			mat.ty = -DotProduct(&camUp, &eyePos);
 			mat.tz = -DotProduct(&camForward, &eyePos);
 
-			ClearScreen(0x0, 1); // Clear the new draw buffer
+			ClearScreen(0x0, 0); // Clear the new draw buffer
 			ptr = (unsigned char *)(ScreenStart);
 
 			// BlitLogo();

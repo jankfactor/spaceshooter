@@ -110,8 +110,8 @@ ClearScreen:
         MOV r11, r0
 
         CMP r1,#0
-        LDRNE r2,ScreenMax
-        LDREQ r2,ScreenPartial
+        LDREQ r2,ScreenMax
+        MOVNE r2,r1 // Max passed in
         LDR r1,ScreenStart
         //  MOVEQ r2,r2,LSR#1
         ADD r12, r1, r2
