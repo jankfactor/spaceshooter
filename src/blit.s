@@ -145,6 +145,51 @@ AddSignature:
         LDMFD sp!, {r4}
         MOV pc, lr
         
+        .global BlitCrosshair
+BlitCrosshair:
+        LDR r0, =ScreenStart
+        LDR r0, [r0]
+
+        @ Build color word: 242 (white) replicated to all 4 bytes
+        MOV r1, #242
+        ORR r1, r1, r1, LSL #8
+        ORR r1, r1, r1, LSL #16
+
+        @ Compute center pixel address: screen + 100*320 + 160
+        MOV r2, #100
+        ADD r2, r2, r2, LSL #2     @ r2 = 500
+        MOV r2, r2, LSL #6         @ r2 = 32000
+        ADD r0, r0, r2
+        ADD r0, r0, #160           @ r0 = center pixel
+
+        @ --- Horizontal: 8 pixels each side = 16 pixels = 4 words ---
+        SUB r2, r0, #16
+        MOV r3, r1
+        STMIA r2, {r1, r3}
+        ADD r2, r0, #8
+        STMIA r2, {r1, r3}
+
+        @ --- Vertical: 8 above + 8 below center, unrolled ---
+        SUB r2, r0, #2560          @ Start 8 lines above center
+        STRB r1, [r2], #-320
+        STRB r1, [r2], #-320
+        STRB r1, [r2], #-320
+        STRB r1, [r2], #-320
+        STRB r1, [r2], #-320
+        STRB r1, [r2], #-320
+        STRB r1, [r2], #-320
+        STRB r1, [r2], #-320
+        ADD r2, r0, #2560           @ Skip center (drawn by horizontal)
+        STRB r1, [r2], #320
+        STRB r1, [r2], #320
+        STRB r1, [r2], #320
+        STRB r1, [r2], #320
+        STRB r1, [r2], #320
+        STRB r1, [r2], #320
+        STRB r1, [r2], #320
+        STRB r1, [r2]
+
+        MOV pc, lr
 
 RadarScreenOffset:
         .word 64096

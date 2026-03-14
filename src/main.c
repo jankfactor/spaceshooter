@@ -24,9 +24,10 @@ extern void ProjectVertex(int vertexPtr);
 extern int GetMonotonicTime(void);
 extern void BlitRadar(void);
 extern void BlitLogo(void);
+extern void BlitCrosshair(void);
 extern void AddSignature(V3D *radarPos);
 
-extern int ScreenStart;
+extern int *ScreenStart;
 
 // SWI access
 _kernel_oserror *err;
@@ -269,12 +270,12 @@ int main(int argc, char *argv[])
 
 			if (KeyPress(KEY_LEFT))
 			{
-				rollRate += (delta << 4);
+				rollRate += (delta << 3);
 				rollRate = rollRate > 64 ? 64 : rollRate;
 			}
 			else if (KeyPress(KEY_RIGHT))
 			{
-				rollRate -= (delta << 4);
+				rollRate -= (delta << 3);
 				rollRate = rollRate < -64 ? -64 : rollRate;
 			}
 			else
@@ -284,12 +285,12 @@ int main(int argc, char *argv[])
 
 			if (KeyPress(KEY_UP))
 			{
-				pitchRate -= (delta << 4);
+				pitchRate -= (delta << 2);
 				pitchRate = pitchRate < -64 ? -64 : pitchRate;
 			}
 			else if (KeyPress(KEY_DOWN))
 			{
-				pitchRate += (delta << 4);
+				pitchRate += (delta << 2);
 				pitchRate = pitchRate > 64 ? 64 : pitchRate;
 			}
 			else if (pitchRate != 0)
@@ -418,6 +419,7 @@ int main(int argc, char *argv[])
 
 			BlitRadar();
 			AddSignature(&tmp);
+			BlitCrosshair();
 
 			// Get the vscan counter and see how many frames have passed since the last reset (max 255).
 			rin.r[0] = 176;
@@ -431,22 +433,22 @@ int main(int argc, char *argv[])
 			// rollRate = clamp((mouseX - rin.r[0]) >> 7, -32, 32) * delta;
 			// pitchRate = clamp((mouseY - rin.r[1]) >> 7, -32, 32) * delta;
 
-			// if ((rin.r[2] & 1)) // Right mouse button pressed - Thrust backward
-			// {
-			// 	playerSpeed = max((playerSpeed - 100 * delta), 0);
-			// 	for (i = 0; i < 320; ++i)
-			// 	{
-			// 		ptr[i + 64000] = (i < (playerSpeed >> 6)) ? 57 : 0; // colors[15 - min(((quantEyeZ + (i << 8)) >> 12), 15)];
-			// 	}
-			// }
-			// else if ((rin.r[2] & 4)) // Left mouse button pressed - Thrust forward
-			// {
-			// 	playerSpeed = min((playerSpeed + 100 * delta), 20000);
-			// 	for (i = 0; i < playerSpeed >> 6; ++i)
-			// 	{
-			// 		ptr[i + 64000] = 57; // colors[15 - min(((quantEyeZ + (i << 8)) >> 12), 15)];
-			// 	}
-			// }
+			if (KeyPress(KEY_A)) // ((rin.r[2] & 4)) // Left mouse button pressed - Thrust forward
+			{
+				playerSpeed = min((playerSpeed + 100 * delta), 20000);
+				for (i = 0; i < 320; ++i)
+				{
+					ptr[i + 74240] = (i < (playerSpeed >> 6)) ? 57 : 0; // colors[15 - min(((quantEyeZ + (i << 8)) >> 12), 15)];
+				}
+			}
+			else if (KeyPress(KEY_Z)) // ((rin.r[2] & 1)) // Right mouse button pressed - Thrust backward
+			{
+				playerSpeed = max((playerSpeed - 100 * delta), 0);
+				for (i = 0; i < 320; ++i)
+				{
+					ptr[i + 74240] = (i < (playerSpeed >> 6)) ? 57 : 0; // colors[15 - min(((quantEyeZ + (i << 8)) >> 12), 15)];
+				}
+			}
 
 			SwitchScreenBank();				// Swap draw buffer with display buffer
 			rin.r[0] = (int)(&swi_data[0]); // Get the new screen start address

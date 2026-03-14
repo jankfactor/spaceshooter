@@ -1,8 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 
-const inputFile = path.join(__dirname, 'Untitled.obj');
-const outputFile = path.join(__dirname, 'ship_obj');
+const inputFile = process.argv[2];
+const outputFile = process.argv[3] || path.join(path.dirname(inputFile), 'ship_obj');
+
+if (!inputFile) {
+  console.error('Usage: node convert-to-fixed-point.js <input.obj> [output_file]');
+  process.exit(1);
+}
 
 const FIXED_POINT_SCALE = 65536; // 2^16 for 16:16 fixed point
 
