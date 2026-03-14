@@ -11,6 +11,7 @@
 void SetupRender(int allocating);
 void RenderStarfield(MAT43 *viewMat, V3D eyePos, unsigned char *ptr);
 void RenderModel(MAT43 *viewMat, Mesh *mesh, V3D *outModelPos, int flash);
+void ExplodingModel(MAT43 *viewMat, Mesh *mesh, V3D *outModelPos, int offset);
 
 extern TRI *g_RenderQueue[MAXDEPTH];
 extern TRI *queuePtr;

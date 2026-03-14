@@ -37,9 +37,9 @@ char *gBaseDirectoryPath = NULL;
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
-#define QTM_PlaySample 	0x47E54
-#define QTM_Start 		0x47E41
-#define QTM_Stop 		0x47E42
+#define QTM_PlaySample 0x47E54
+#define QTM_Start 0x47E41
+#define QTM_Stop 0x47E42
 
 int main(int argc, char *argv[])
 {
@@ -52,11 +52,13 @@ int main(int argc, char *argv[])
 	V3D eyePos;
 	V3D tmp;
 	V3D camRight, camUp, camForward;
+	int blast = 0;
 	MAT43 mat;
 	int mouseX = 0, mouseY = 0;
 	unsigned char block[9];
 	unsigned char *ptr = NULL;
 	int flash = 0;
+	int shotCount = 0;
 
 	srand((unsigned int)time(NULL));
 
@@ -110,7 +112,7 @@ int main(int argc, char *argv[])
 		rin.r[1] = (int)(&swi_data[3]); // Results
 		err = _kernel_swi(OS_ReadVduVariables, &rin, &rout);
 		UpdateMemAddress(swi_data[3]); // Pass these to the ASM side
-		ClearScreen(0, 0);							// Clear the new draw buffer
+		ClearScreen(0, 0);			   // Clear the new draw buffer
 	}
 
 	ptr = (unsigned char *)(ScreenStart);
@@ -173,8 +175,8 @@ int main(int argc, char *argv[])
 			rin.r[0] = (int)(&swi_data[0]); // Get the new screen start address
 			rin.r[1] = (int)(&swi_data[3]); // Results
 			err = _kernel_swi(OS_ReadVduVariables, &rin, &rout);
-			UpdateMemAddress(swi_data[3]); // Pass these to the ASM side
-			ClearScreen(0x0E0E0E0E, 320 * 160); // Clear the new draw buffer
+			UpdateMemAddress(swi_data[3]);		// Pass these to the ASM side
+			ClearScreen(0x0D0D0D0D, 320 * 160); // Clear the new draw buffer
 			BlitLogo();
 			RenderModel(&mat, &g_Mesh, &tmp, 0);
 
@@ -182,10 +184,16 @@ int main(int argc, char *argv[])
 			g_Mesh.eulers.z += 5;
 		}
 
+		fireRate = 10;
+
 		err = _kernel_swi(QTM_Stop, 0, 0); // Start the QTM sound engine
 	}
 
 	eyePos.x = 100 << 16;
+
+	g_Mesh.position.x = eyePos.x + fixmult(camForward.x, 200 << 16);
+	g_Mesh.position.y = eyePos.y + fixmult(camForward.y, 200 << 16);
+	g_Mesh.position.z = eyePos.z + fixmult(camForward.z, 200 << 16);
 
 	// Get initial mouse position
 	err = _kernel_swi(OS_Mouse, &rin, &rout);
@@ -201,7 +209,7 @@ int main(int argc, char *argv[])
 			// (Minsky trick: using the intermediate value improves rotational stability).
 			// Saves: 2 trig lookups (fixcos), 12 fixmults, 2 temp V3D structs vs full rotation.
 			{
-				const fix alpha = fixsin(rollRate);
+				const fix alpha = fixsin(rollRate >> 4);
 				camUp.x -= fixmult(alpha, camRight.x);
 				camUp.y -= fixmult(alpha, camRight.y);
 				camUp.z -= fixmult(alpha, camRight.z);
@@ -213,7 +221,7 @@ int main(int argc, char *argv[])
 			// Apply pitch: same small-angle Minsky approximation.
 			// Update camUp first, reuse updated camUp for camForward.
 			{
-				const fix beta = fixsin(pitchRate);
+				const fix beta = fixsin(pitchRate >> 4);
 				camUp.x -= fixmult(beta, camForward.x);
 				camUp.y -= fixmult(beta, camForward.y);
 				camUp.z -= fixmult(beta, camForward.z);
@@ -254,33 +262,77 @@ int main(int argc, char *argv[])
 			g_Mesh.eulers.x += g_Mesh.pitchPerFrame * delta;
 			g_Mesh.eulers.z += g_Mesh.rollPerFrame * delta;
 
+			// Lerp the roll rate back to
+
 			if (KeyPress(KEY_ESCAPE)) // Escape
 				isRunning = 0;
-			else if (KeyPress(KEY_A)) // A - Strafe left
+
+			if (KeyPress(KEY_LEFT))
 			{
-				eyePos.x -= camRight.x >> 1;
-				eyePos.y -= camRight.y >> 1;
-				eyePos.z -= camRight.z >> 1;
+				rollRate += (delta << 4);
+				rollRate = rollRate > 64 ? 64 : rollRate;
 			}
-			else if (KeyPress(KEY_D)) // D - Strafe right
+			else if (KeyPress(KEY_RIGHT))
 			{
-				eyePos.x += camRight.x >> 1;
-				eyePos.y += camRight.y >> 1;
-				eyePos.z += camRight.z >> 1;
+				rollRate -= (delta << 4);
+				rollRate = rollRate < -64 ? -64 : rollRate;
 			}
-			else if (KeyPress(KEY_W)) // W - Strafe up
+			else
 			{
-				eyePos.x += camUp.x >> 1;
-				eyePos.y += camUp.y >> 1;
-				eyePos.z += camUp.z >> 1;
+				rollRate = rollRate > 0 ? rollRate - delta : (rollRate < 0 ? rollRate + delta : 0);
 			}
-			else if (KeyPress(KEY_S)) // S - Strafe down
+
+			if (KeyPress(KEY_UP))
 			{
-				eyePos.x -= camUp.x >> 1;
-				eyePos.y -= camUp.y >> 1;
-				eyePos.z -= camUp.z >> 1;
+				pitchRate -= (delta << 4);
+				pitchRate = pitchRate < -64 ? -64 : pitchRate;
 			}
-			else if (KeyPress(KEY_SPACE) && !fireRate) // Space - Fire
+			else if (KeyPress(KEY_DOWN))
+			{
+				pitchRate += (delta << 4);
+				pitchRate = pitchRate > 64 ? 64 : pitchRate;
+			}
+			else if (pitchRate != 0)
+			{
+				if (pitchRate > 0)
+				{
+					pitchRate -= (delta << 1);
+					if (pitchRate < 0)
+						pitchRate = 0;
+				}
+				else
+				{
+					pitchRate += (delta << 1);
+					if (pitchRate > 0)
+						pitchRate = 0;
+				}
+			}
+
+			// if (KeyPress(KEY_A)) // A - Strafe left
+			// {
+			// 	eyePos.x -= camRight.x >> 1;
+			// 	eyePos.y -= camRight.y >> 1;
+			// 	eyePos.z -= camRight.z >> 1;
+			// }
+			// else if (KeyPress(KEY_D)) // D - Strafe right
+			// {
+			// 	eyePos.x += camRight.x >> 1;
+			// 	eyePos.y += camRight.y >> 1;
+			// 	eyePos.z += camRight.z >> 1;
+			// }
+			// else if (KeyPress(KEY_W)) // W - Strafe up
+			// {
+			// 	eyePos.x += camUp.x >> 1;
+			// 	eyePos.y += camUp.y >> 1;
+			// 	eyePos.z += camUp.z >> 1;
+			// }
+			// else if (KeyPress(KEY_S)) // S - Strafe down
+			// {
+			// 	eyePos.x -= camUp.x >> 1;
+			// 	eyePos.y -= camUp.y >> 1;
+			// 	eyePos.z -= camUp.z >> 1;
+			// }
+			if (KeyPress(KEY_SPACE) && !fireRate) // Space - Fire
 			{
 				rin.r[0] = 3; // Any channel
 				rin.r[1] = 1;
@@ -288,7 +340,7 @@ int main(int argc, char *argv[])
 				rin.r[3] = 64;								   // Max volume
 				err = _kernel_swi(QTM_PlaySample, &rin, &rin); // Get the mouse position
 
-				if (ptr[32160])
+				if ((ptr[32160] & 0x0F) != 0x0D)
 				{
 					flash = 8;
 
@@ -297,6 +349,7 @@ int main(int argc, char *argv[])
 					rin.r[2] = 32 + rand() % 4;					   // C-2
 					rin.r[3] = 64;								   // Max volume
 					err = _kernel_swi(QTM_PlaySample, &rin, &rin); // Get the mouse position
+					shotCount++;
 				}
 
 				fireRate = 30; // Set fire rate cooldown
@@ -316,12 +369,31 @@ int main(int argc, char *argv[])
 			mat.ty = -DotProduct(&camUp, &eyePos);
 			mat.tz = -DotProduct(&camForward, &eyePos);
 
-			ClearScreen(0x0, 0); // Clear the new draw buffer
+			ClearScreen(0x0D0D0D0D, 320 * 200); // Clear the new draw buffer
 			ptr = (unsigned char *)(ScreenStart);
 
 			// BlitLogo();
 			RenderStarfield(&mat, eyePos, ptr);
-			RenderModel(&mat, &g_Mesh, &tmp, flash);
+
+			if (shotCount < 4)
+			{
+				RenderModel(&mat, &g_Mesh, &tmp, flash);
+			}
+			else
+			{
+				blast += (100 << delta);
+				ExplodingModel(&mat, &g_Mesh, &tmp, blast);
+
+				if (blast >> 14)
+				{
+					blast = 0;
+					shotCount = 0;
+
+					g_Mesh.position.x = eyePos.x + fixmult(camForward.x, 200 << 16);
+					g_Mesh.position.y = eyePos.y + fixmult(camForward.y, 200 << 16);
+					g_Mesh.position.z = eyePos.z + fixmult(camForward.z, 200 << 16);
+				}
+			}
 
 			if (fireRate == 30)
 			{
@@ -355,26 +427,26 @@ int main(int argc, char *argv[])
 
 			++j;
 
-			err = _kernel_swi(OS_Mouse, &rin, &rin); // Get the mouse position
-			rollRate = clamp((mouseX - rin.r[0]) >> 7, -32, 32) * delta;
-			pitchRate = clamp((mouseY - rin.r[1]) >> 7, -32, 32) * delta;
+			// err = _kernel_swi(OS_Mouse, &rin, &rin); // Get the mouse position
+			// rollRate = clamp((mouseX - rin.r[0]) >> 7, -32, 32) * delta;
+			// pitchRate = clamp((mouseY - rin.r[1]) >> 7, -32, 32) * delta;
 
-			if ((rin.r[2] & 1)) // Right mouse button pressed - Thrust backward
-			{
-				playerSpeed = max((playerSpeed - 100 * delta), 0);
-				for (i = 0; i < 320; ++i)
-				{
-					ptr[i + 64000] = (i < (playerSpeed >> 6)) ? 57 : 0; // colors[15 - min(((quantEyeZ + (i << 8)) >> 12), 15)];
-				}
-			}
-			else if ((rin.r[2] & 4)) // Left mouse button pressed - Thrust forward
-			{
-				playerSpeed = min((playerSpeed + 100 * delta), 20000);
-				for (i = 0; i < playerSpeed >> 6; ++i)
-				{
-					ptr[i + 64000] = 57; // colors[15 - min(((quantEyeZ + (i << 8)) >> 12), 15)];
-				}
-			}
+			// if ((rin.r[2] & 1)) // Right mouse button pressed - Thrust backward
+			// {
+			// 	playerSpeed = max((playerSpeed - 100 * delta), 0);
+			// 	for (i = 0; i < 320; ++i)
+			// 	{
+			// 		ptr[i + 64000] = (i < (playerSpeed >> 6)) ? 57 : 0; // colors[15 - min(((quantEyeZ + (i << 8)) >> 12), 15)];
+			// 	}
+			// }
+			// else if ((rin.r[2] & 4)) // Left mouse button pressed - Thrust forward
+			// {
+			// 	playerSpeed = min((playerSpeed + 100 * delta), 20000);
+			// 	for (i = 0; i < playerSpeed >> 6; ++i)
+			// 	{
+			// 		ptr[i + 64000] = 57; // colors[15 - min(((quantEyeZ + (i << 8)) >> 12), 15)];
+			// 	}
+			// }
 
 			SwitchScreenBank();				// Swap draw buffer with display buffer
 			rin.r[0] = (int)(&swi_data[0]); // Get the new screen start address

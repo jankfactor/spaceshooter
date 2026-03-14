@@ -232,3 +232,112 @@ void RenderModel(MAT43 *viewMat, Mesh *mesh, V3D *outModelPos, int flash)
         }
     }
 }
+
+void ExplodingModel(MAT43 *viewMat, Mesh *mesh, V3D *outModelPos, int offset)
+{
+    MAT43 modelMat, modelViewMat;
+    V3D _verts[4], tmpVec, tmpVec2;
+    V3D *vPtr;
+    int i;
+    size_t vec_i;
+
+    // Build local model matrix from mesh eulers and position
+    EulerToMat(&modelMat, mesh->eulers.x, mesh->eulers.y, mesh->eulers.z);
+
+    // Cache the forward vector (3rd column) for position update after rendering
+    mesh->forward.x = modelMat.m13;
+    mesh->forward.y = modelMat.m23;
+    mesh->forward.z = modelMat.m33;
+
+    modelMat.tx = mesh->position.x;
+    modelMat.ty = mesh->position.y;
+    modelMat.tz = mesh->position.z;
+
+    // Combine model and view into a single matrix (column-vector: viewMat * modelMat)
+    MultMatMat(&modelViewMat, viewMat, &modelMat);
+
+    // Get the position of the model in view space for the radar
+    if (outModelPos)
+    {
+        outModelPos->x = modelViewMat.tx;
+        outModelPos->y = modelViewMat.ty;
+        outModelPos->z = modelViewMat.tz;
+    }
+
+    // Transform vertices: object space -> view space in one step
+    for (vec_i = 0; vec_i < cvector_size(mesh->verts); ++vec_i)
+    {
+        vPtr = &mesh->verts_transformed[vec_i];
+        MultV3DMat(&mesh->verts[vec_i], vPtr, &modelViewMat);
+        ProjectVertex((int)(vPtr)); // Perspective projection (skips if Z <= 0)
+    }
+
+    // Backface cull and insert visible faces into the depth-sorted render queue
+    for (vec_i = 0; vec_i < cvector_size(mesh->faces); ++vec_i)
+    {
+        mesh->faces[vec_i].next = NULL;
+        _verts[0] = mesh->verts_transformed[mesh->faces[vec_i].a];
+        _verts[1] = mesh->verts_transformed[mesh->faces[vec_i].b];
+        _verts[2] = mesh->verts_transformed[mesh->faces[vec_i].c];
+
+        // Offset by the first face normal
+        const V3D *n = &mesh->faces[0].normal;
+
+        _verts[2].z += fixmult(n->z, offset);
+
+        // Skip faces with any vertex behind the camera (not projected)
+        if (_verts[0].z <= 0 || _verts[1].z <= 0 || _verts[2].z <= 0)
+            continue;
+
+        //if (orient2dint(_verts[0], _verts[1], _verts[2]) > 0)
+        {
+            // Rotate face normal by model rotation for correct lighting.
+            // Use fixmult (not fixmult_lessThanOne) to avoid 32-bit overflow
+            // when rotation matrix entries or normal components reach 1.0.
+            const V3D *n = &mesh->faces[vec_i].normal;
+            tmpVec.x = fixmult(n->x, modelMat.m11) + fixmult(n->y, modelMat.m12) + fixmult(n->z, modelMat.m13);
+            tmpVec.y = fixmult(n->x, modelMat.m21) + fixmult(n->y, modelMat.m22) + fixmult(n->z, modelMat.m23);
+            tmpVec.z = fixmult(n->x, modelMat.m31) + fixmult(n->y, modelMat.m32) + fixmult(n->z, modelMat.m33);
+            mesh->faces[vec_i].d = (mesh->faces[vec_i].d & 0xFFFFFF80) + clamp((tmpVec.z >> 10), 0, 63);
+            mesh->faces[vec_i].depth = min((_verts[0].z + _verts[1].z + _verts[2].z) >> 8, MAXDEPTH - 1);
+
+            // Push the previous triangle (if any) onto the stack for this depth.
+            mesh->faces[vec_i].next = g_RenderQueue[mesh->faces[vec_i].depth];
+            g_RenderQueue[mesh->faces[vec_i].depth] = &mesh->faces[vec_i];
+        }
+    }
+
+
+    // Project the object center to screen space for outward displacement
+    tmpVec.x = modelViewMat.tx;
+    tmpVec.y = modelViewMat.ty;
+    tmpVec.z = modelViewMat.tz;
+    ProjectVertex((int)&tmpVec);
+
+    // Painter's algorithm. Proceed from furthest to nearest.
+    for (i = MAXDEPTH - 1; i >= 0; i--)
+    {
+        while (g_RenderQueue[i])
+        { // Render faces with current depth
+            queuePtr = g_RenderQueue[i];
+
+            _verts[0] = mesh->verts_transformed[queuePtr->a];
+            tmpVec2.x = _verts[0].x - tmpVec.x;
+            tmpVec2.y = _verts[0].y - tmpVec.y;
+            _verts[0].x += (tmpVec2.x * offset) >> 12;
+            _verts[0].y += (tmpVec2.y * offset) >> 12;
+
+            _verts[1] = mesh->verts_transformed[queuePtr->b];
+            _verts[1].x += (tmpVec2.x * offset) >> 12;
+            _verts[1].y += (tmpVec2.y * offset) >> 12;
+
+            _verts[2] = mesh->verts_transformed[queuePtr->c];
+            _verts[2].x += (tmpVec2.x * offset) >> 12;
+            _verts[2].y += (tmpVec2.y * offset) >> 12;
+
+            FillEdgeLists((unsigned int)(&_verts[0]), queuePtr->d);
+
+            g_RenderQueue[i] = (TRI *)queuePtr->next; // Next face
+        }
+    }
+}
