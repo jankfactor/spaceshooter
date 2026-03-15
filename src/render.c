@@ -7,6 +7,7 @@
 
 extern void FillEdgeLists(int triList, int color);
 extern void ProjectVertex(int vertexPtr);
+extern void FillCircleClipped(int x, int y, int radius);
 
 TRI *g_RenderQueue[MAXDEPTH];
 TRI *queuePtr = NULL;
@@ -314,6 +315,8 @@ void ExplodingModel(MAT43 *viewMat, Mesh *mesh, V3D *outModelPos, int offset)
     tmpVec.z = modelViewMat.tz;
     ProjectVertex((int)&tmpVec);
 
+    FillCircleClipped(tmpVec.x, tmpVec.y, rand()%50 + 30);
+
     // Painter's algorithm. Proceed from furthest to nearest.
     for (i = MAXDEPTH - 1; i >= 0; i--)
     {
@@ -324,16 +327,16 @@ void ExplodingModel(MAT43 *viewMat, Mesh *mesh, V3D *outModelPos, int offset)
             _verts[0] = mesh->verts_transformed[queuePtr->a];
             tmpVec2.x = _verts[0].x - tmpVec.x;
             tmpVec2.y = _verts[0].y - tmpVec.y;
-            _verts[0].x += (tmpVec2.x * offset) >> 12;
-            _verts[0].y += (tmpVec2.y * offset) >> 12;
+            _verts[0].x += (tmpVec2.x * offset) >> 11;
+            _verts[0].y += (tmpVec2.y * offset) >> 11;
 
             _verts[1] = mesh->verts_transformed[queuePtr->b];
-            _verts[1].x += (tmpVec2.x * offset) >> 12;
-            _verts[1].y += (tmpVec2.y * offset) >> 12;
+            _verts[1].x += (tmpVec2.x * offset) >> 11;
+            _verts[1].y += (tmpVec2.y * offset) >> 11;
 
             _verts[2] = mesh->verts_transformed[queuePtr->c];
-            _verts[2].x += (tmpVec2.x * offset) >> 12;
-            _verts[2].y += (tmpVec2.y * offset) >> 12;
+            _verts[2].x += (tmpVec2.x * offset) >> 11;
+            _verts[2].y += (tmpVec2.y * offset) >> 11;
 
             FillEdgeLists((unsigned int)(&_verts[0]), queuePtr->d);
 
